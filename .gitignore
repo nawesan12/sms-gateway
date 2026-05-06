@@ -1,0 +1,21 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.idea/
+.vscode/
+*.tsbuildinfo
+prisma/dev.db
+prisma/migrations/dev/
+
+# Deploy
+scripts/deploy/accounts.json
+.playwright-mcp/
+
+# Web
+web/node_modules/
+web/dist/

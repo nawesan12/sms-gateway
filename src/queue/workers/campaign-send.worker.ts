@@ -1,0 +1,174 @@
+import { Worker, type Job } from 'bullmq';
+import IORedis from 'ioredis';
+import { CampaignStatus, DeliveryStatus, PrismaClient } from '@prisma/client';
+import type { AppEnv } from '@/config/env.js';
+import type { AppLogger } from '@/lib/logger-types.js';
+import { QUEUE_NAMES } from '@/config/constants.js';
+import { TextBeeProvider } from '@/modules/sms/providers/textbee.provider.js';
+import { SmsService } from '@/modules/sms/sms.service.js';
+import { DeviceRouter } from '@/modules/sms/device-router.js';
+import { DeviceCrypto } from '@/modules/devices/crypto.js';
+import { renderTemplate } from '@/lib/template.js';
+import type { CampaignSendJob } from '../jobs/job.types.js';
+
+export interface CampaignWorkerHandle {
+  worker: Worker<CampaignSendJob>;
+  shutdown: () => Promise<void>;
+}
+
+export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): CampaignWorkerHandle {
+  const prisma = new PrismaClient();
+  const provider = new TextBeeProvider(env, logger);
+  const crypto = new DeviceCrypto(env.MASTER_ENCRYPTION_KEY_B64);
+  const router = DeviceRouter.create(prisma, env, logger);
+  const sms = new SmsService(prisma, env, logger, provider, router, crypto);
+
+  const connectionClient = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
+
+  const worker = new Worker<CampaignSendJob>(
+    QUEUE_NAMES.CAMPAIGN_SEND,
+    async (job: Job<CampaignSendJob>) => {
+      const { deliveryId, campaignId, correlationId } = job.data;
+      const childLog = logger.child({ jobId: job.id, deliveryId, campaignId, correlationId });
+
+      const delivery = await prisma.campaignDelivery.findUnique({
+        where: { id: deliveryId },
+        include: { contact: true, campaign: true },
+      });
+      if (!delivery) {
+        childLog.warn('delivery not found, skipping');
+        return { ok: false };
+      }
+      if (delivery.status !== DeliveryStatus.PENDING) {
+        childLog.debug({ status: delivery.status }, 'delivery already processed');
+        return { ok: false };
+      }
+      if (
+        delivery.campaign.status === CampaignStatus.CANCELED ||
+        delivery.campaign.status === CampaignStatus.PAUSED
+      ) {
+        await prisma.campaignDelivery.update({
+          where: { id: deliveryId },
+          data: { status: DeliveryStatus.SKIPPED },
+        });
+        return { ok: false };
+      }
+
+      // Transition campaign to RUNNING on first delivery
+      if (delivery.campaign.status === CampaignStatus.QUEUED) {
+        await prisma.campaign.updateMany({
+          where: { id: campaignId, status: CampaignStatus.QUEUED },
+          data: { status: CampaignStatus.RUNNING },
+        });
+      }
+
+      const message = renderTemplate(delivery.campaign.messageTemplate, {
+        name: delivery.contact.name ?? '',
+        phone: delivery.contact.phoneE164,
+      });
+
+      try {
+        const device = await router.select();
+        const smsId = await sms.createPending({
+          deviceId: device.id,
+          recipientE164: delivery.contact.phoneE164,
+        });
+        const { result } = await sms.dispatch({
+          smsMessageId: smsId,
+          recipientE164: delivery.contact.phoneE164,
+          message,
+        });
+
+        if (result.ok) {
+          await prisma.$transaction([
+            prisma.campaignDelivery.update({
+              where: { id: deliveryId },
+              data: {
+                status: DeliveryStatus.SENT,
+                smsMessageId: smsId,
+                sentAt: new Date(),
+              },
+            }),
+            prisma.campaign.update({
+              where: { id: campaignId },
+              data: { sentCount: { increment: 1 } },
+            }),
+          ]);
+        } else {
+          await sms.finalizeFailure(
+            smsId,
+            result.errorCode ?? 'UNKNOWN',
+            result.errorMessage ?? 'send failed',
+          );
+          await prisma.$transaction([
+            prisma.campaignDelivery.update({
+              where: { id: deliveryId },
+              data: {
+                status: DeliveryStatus.FAILED,
+                smsMessageId: smsId,
+                errorCode: result.errorCode ?? null,
+                errorMessage: result.errorMessage ?? null,
+              },
+            }),
+            prisma.campaign.update({
+              where: { id: campaignId },
+              data: { failedCount: { increment: 1 } },
+            }),
+          ]);
+        }
+      } catch (err) {
+        childLog.warn({ err }, 'campaign delivery dispatch error');
+        await prisma.$transaction([
+          prisma.campaignDelivery.update({
+            where: { id: deliveryId },
+            data: {
+              status: DeliveryStatus.FAILED,
+              errorCode: 'DISPATCH_ERROR',
+              errorMessage: (err as Error).message,
+            },
+          }),
+          prisma.campaign.update({
+            where: { id: campaignId },
+            data: { failedCount: { increment: 1 } },
+          }),
+        ]);
+      }
+
+      // Check if campaign is fully done
+      const remaining = await prisma.campaignDelivery.count({
+        where: { campaignId, status: DeliveryStatus.PENDING },
+      });
+      if (remaining === 0) {
+        await prisma.campaign.update({
+          where: { id: campaignId },
+          data: { status: CampaignStatus.COMPLETED, completedAt: new Date() },
+        });
+        childLog.info('campaign completed');
+      }
+
+      return { ok: true };
+    },
+    {
+      connection: connectionClient,
+      concurrency: env.WORKER_CONCURRENCY,
+      // Conservative global rate limiter: respect average TPS across all campaigns.
+      // Per-campaign tpsLimit is informative; tighter limits would require
+      // multiple queues. For MVP: max 5 SMS/sec global.
+      limiter: { max: 5, duration: 1000 },
+    },
+  );
+
+  worker.on('failed', (job, err) => {
+    if (!job) return;
+    logger.warn({ jobId: job.id, err: err.message }, 'campaign-send job failed');
+  });
+
+  return {
+    worker,
+    shutdown: async () => {
+      await worker.close();
+      await connectionClient.quit().catch(() => undefined);
+      await prisma.$disconnect();
+    },
+  };
+}

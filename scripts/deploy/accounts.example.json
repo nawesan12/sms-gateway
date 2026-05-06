@@ -1,0 +1,20 @@
+{
+  "image": "sms-gateway",
+  "tag": "latest",
+  "registries": [
+    {
+      "name": "main",
+      "registry": "docker.io",
+      "username": "tuusuario",
+      "passwordEnv": "DOCKER_PASSWORD_MAIN",
+      "repo": "tuusuario/sms-gateway"
+    },
+    {
+      "name": "client-acme",
+      "registry": "docker.io",
+      "username": "acmehub",
+      "passwordEnv": "DOCKER_PASSWORD_ACME",
+      "repo": "acmehub/sms-gateway"
+    }
+  ]
+}

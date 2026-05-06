@@ -1,0 +1,38 @@
+services:
+  postgres:
+    ports: []
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  redis:
+    ports: []
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  api:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info
+
+  worker:
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info

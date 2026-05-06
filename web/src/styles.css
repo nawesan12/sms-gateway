@@ -1,0 +1,206 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Operator Console — base
+   ============================================================ */
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  background: #08080a;
+  color: #fafaf9;
+}
+
+body {
+  /* Vignette + faint grid + grain — atmosphere, not decoration. */
+  background-image:
+    radial-gradient(80rem 60rem at 80% -10%, rgba(250, 204, 21, 0.04), transparent 60%),
+    radial-gradient(60rem 40rem at -10% 110%, rgba(96, 165, 250, 0.03), transparent 60%),
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size:
+    auto,
+    auto,
+    32px 32px,
+    32px 32px;
+  background-attachment: fixed;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+  opacity: 0.06;
+  mix-blend-mode: overlay;
+  z-index: 1;
+}
+
+#root {
+  position: relative;
+  z-index: 2;
+}
+
+::selection {
+  background: #facc15;
+  color: #0a0a0c;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 0;
+  border: 2px solid #08080a;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* Tabular numerals everywhere */
+.font-mono,
+table,
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   Components
+   ============================================================ */
+@layer components {
+  .surface {
+    @apply bg-canvas-elevated border border-line-subtle;
+  }
+  .surface-overlay {
+    @apply bg-canvas-overlay border border-line;
+  }
+
+  /* Buttons -------------------------------------------------- */
+  .btn-base {
+    @apply inline-flex items-center justify-center gap-2 px-3.5 h-9
+           text-2xs uppercase tracking-widest font-mono font-medium
+           transition-all duration-150 select-none
+           disabled:cursor-not-allowed disabled:opacity-40
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent
+           focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
+  }
+  .btn-primary {
+    @apply btn-base bg-accent text-accent-fg hover:bg-accent-hover;
+  }
+  .btn-secondary {
+    @apply btn-base bg-canvas-elevated text-ink-primary border border-line
+           hover:border-line-strong hover:bg-canvas-overlay;
+  }
+  .btn-danger {
+    @apply btn-base bg-canvas-elevated text-signal-err border border-signal-err/40
+           hover:bg-signal-err/10 hover:border-signal-err/60;
+  }
+  .btn-ghost {
+    @apply btn-base text-ink-secondary hover:text-ink-primary hover:bg-canvas-overlay;
+  }
+
+  /* Inputs --------------------------------------------------- */
+  .input {
+    @apply block w-full bg-canvas-input border border-line
+           px-3 py-2 text-sm text-ink-primary
+           placeholder:text-ink-muted/70
+           focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/40
+           transition-colors;
+  }
+  .input-mono {
+    @apply input font-mono;
+  }
+  .label {
+    @apply block text-2xs uppercase tracking-widest font-mono text-ink-secondary mb-1.5;
+  }
+
+  /* Cards ---------------------------------------------------- */
+  .card {
+    @apply surface relative;
+  }
+
+  /* Section header */
+  .section-eyebrow {
+    @apply text-2xs uppercase tracking-widest font-mono text-ink-muted;
+  }
+  .section-title {
+    @apply font-display text-3xl text-ink-primary leading-none;
+  }
+
+  /* Divider with label */
+  .divider-label {
+    @apply flex items-center gap-3 text-2xs uppercase tracking-widest font-mono text-ink-muted;
+  }
+  .divider-label::before,
+  .divider-label::after {
+    content: '';
+    @apply flex-1 h-px bg-line;
+  }
+
+  /* Status pill */
+  .pill {
+    @apply inline-flex items-center gap-1.5 px-2 py-0.5
+           text-2xs uppercase tracking-widest font-mono
+           border;
+  }
+
+  /* Data table */
+  .data-table {
+    @apply w-full text-sm;
+  }
+  .data-table thead th {
+    @apply text-left text-2xs uppercase tracking-widest font-mono
+           text-ink-muted font-normal py-2 px-3 border-b border-line;
+  }
+  .data-table tbody td {
+    @apply py-3 px-3 border-b border-line-subtle;
+  }
+  .data-table tbody tr {
+    @apply transition-colors;
+  }
+  .data-table tbody tr:hover {
+    @apply bg-canvas-overlay/40;
+  }
+  .data-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  /* Crosshair backgrounds for empty states / heroes */
+  .crosshair {
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+}
+
+/* ============================================================
+   Utilities
+   ============================================================ */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .stagger > * {
+    animation: fadeUp 400ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger > *:nth-child(2) { animation-delay: 60ms; }
+  .stagger > *:nth-child(3) { animation-delay: 120ms; }
+  .stagger > *:nth-child(4) { animation-delay: 180ms; }
+  .stagger > *:nth-child(5) { animation-delay: 240ms; }
+  .stagger > *:nth-child(6) { animation-delay: 300ms; }
+}

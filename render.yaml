@@ -1,0 +1,170 @@
+# =============================================================
+# Render Blueprint · SMS Gateway
+#
+# Pegale este repo a una cuenta Render y "New Blueprint":
+# Render crea automáticamente: Postgres + Redis + API web + Worker.
+#
+# IMPORTANTE: completá los secrets manualmente en cada servicio
+# antes del primer deploy:
+#   - JWT_PRIVATE_KEY_B64
+#   - JWT_PUBLIC_KEY_B64
+#   - MASTER_ENCRYPTION_KEY_B64
+#   - ADMIN_BOOTSTRAP_TOKEN
+#
+# Si vas a usar la imagen ya pusheada a Docker Hub, reemplazá
+# los `dockerfilePath` por:
+#   image:
+#     url: docker.io/<usuario>/sms-gateway:latest
+# =============================================================
+
+databases:
+  - name: sms-gateway-db
+    databaseName: sms_gateway
+    user: sms
+    plan: free        # free / starter / standard
+    region: oregon    # oregon / ohio / virginia / frankfurt / singapore
+
+services:
+  # ------------------- Redis (Key Value) -------------------
+  - type: keyvalue
+    name: sms-gateway-redis
+    plan: free
+    region: oregon
+    ipAllowList: []   # vacío = solo accesible desde otros servicios Render
+    maxmemoryPolicy: noeviction
+
+  # ----------------------- API web ------------------------
+  - type: web
+    name: sms-gateway-api
+    runtime: docker
+    plan: starter      # free no aguanta el build; starter $7/mo recomendado
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: PORT
+        value: "3000"
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sms-gateway-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: sms-gateway-redis
+          property: connectionString
+      - key: JWT_PRIVATE_KEY_B64
+        sync: false        # se setea manual en el dashboard
+      - key: JWT_PUBLIC_KEY_B64
+        sync: false
+      - key: MASTER_ENCRYPTION_KEY_B64
+        sync: false
+      - key: ADMIN_BOOTSTRAP_TOKEN
+        sync: false
+      - key: JWT_ACCESS_TTL_SEC
+        value: "900"
+      - key: JWT_REFRESH_TTL_SEC
+        value: "604800"
+      - key: JWT_ISSUER
+        value: sms-gateway
+      - key: JWT_AUDIENCE
+        value: sms-gateway-clients
+      - key: TEXTBEE_BASE_URL
+        value: https://api.textbee.dev/api/v1/gateway
+      - key: TEXTBEE_TIMEOUT_MS
+        value: "10000"
+      - key: TEXTBEE_MAX_RETRIES
+        value: "3"
+      - key: OTP_LENGTH
+        value: "6"
+      - key: OTP_TTL_SEC
+        value: "300"
+      - key: OTP_MAX_ATTEMPTS
+        value: "5"
+      - key: OTP_MESSAGE_TEMPLATE
+        value: "Tu codigo es {{code}}. Expira en {{minutes}} min."
+      - key: RATE_LIMIT_IP_MAX
+        value: "10"
+      - key: RATE_LIMIT_IP_WINDOW_SEC
+        value: "3600"
+      - key: RATE_LIMIT_PHONE_DAILY_MAX
+        value: "5"
+      - key: RATE_LIMIT_PHONE_COOLDOWN_SEC
+        value: "60"
+      - key: CORS_ORIGINS
+        value: ""        # mismo origen — backend sirve la UI
+      - key: DEFAULT_PHONE_REGION
+        value: AR
+      - key: WORKER_CONCURRENCY
+        value: "5"
+      - key: WORKER_MAX_RETRIES
+        value: "3"
+      - key: WORKER_BACKOFF_MS
+        value: "2000"
+      - key: CIRCUIT_FAILURE_THRESHOLD
+        value: "5"
+      - key: CIRCUIT_RESET_TIMEOUT_MS
+        value: "30000"
+      - key: METRICS_ENABLED
+        value: "true"
+      - key: METRICS_IP_ALLOWLIST
+        value: 127.0.0.1,::1
+
+  # ----------------------- Worker -------------------------
+  - type: worker
+    name: sms-gateway-worker
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: node dist/worker.js
+    autoDeploy: true
+    envVars:
+      - fromGroup: sms-gateway-shared
+      # las shared se completan en envVarGroups abajo
+
+envVarGroups:
+  - name: sms-gateway-shared
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sms-gateway-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: sms-gateway-redis
+          property: connectionString
+      - key: MASTER_ENCRYPTION_KEY_B64
+        sync: false
+      - key: TEXTBEE_BASE_URL
+        value: https://api.textbee.dev/api/v1/gateway
+      - key: TEXTBEE_TIMEOUT_MS
+        value: "10000"
+      - key: TEXTBEE_MAX_RETRIES
+        value: "3"
+      - key: WORKER_CONCURRENCY
+        value: "5"
+      - key: WORKER_MAX_RETRIES
+        value: "3"
+      - key: WORKER_BACKOFF_MS
+        value: "2000"
+      - key: CIRCUIT_FAILURE_THRESHOLD
+        value: "5"
+      - key: CIRCUIT_RESET_TIMEOUT_MS
+        value: "30000"
+      - key: DEFAULT_PHONE_REGION
+        value: AR

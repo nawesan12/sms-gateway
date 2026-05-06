@@ -1,0 +1,272 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = []
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// USERS
+// =============================================================================
+model User {
+  id          String       @id @default(uuid())
+  phoneE164   String       @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  lastLoginAt DateTime?
+  isBlocked   Boolean      @default(false)
+  role        UserRole     @default(USER)
+  otpRequests OtpRequest[]
+
+  @@index([phoneE164])
+  @@index([role])
+  @@map("users")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+// =============================================================================
+// OTP REQUESTS
+// =============================================================================
+model OtpRequest {
+  id          String      @id @default(uuid())
+  userId      String?
+  phoneE164   String
+  codeHash    String
+  attempts    Int         @default(0)
+  maxAttempts Int         @default(5)
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime    @default(now())
+  ipAddress   String?
+  userAgent   String?
+  smsMessage  SmsMessage?
+  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([phoneE164, createdAt])
+  @@index([expiresAt])
+  @@index([consumedAt])
+  @@map("otp_requests")
+}
+
+// =============================================================================
+// SMS MESSAGES
+// =============================================================================
+model SmsMessage {
+  id               String      @id @default(uuid())
+  otpRequestId     String?     @unique
+  deviceId         String
+  recipientE164    String
+  status           SmsStatus   @default(PENDING)
+  textbeeMessageId String?
+  errorCode        String?
+  errorMessage     String?
+  sentAt           DateTime?
+  deliveredAt      DateTime?
+  failedAt         DateTime?
+  retryCount       Int         @default(0)
+  createdAt        DateTime    @default(now())
+  device           Device      @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  otpRequest       OtpRequest? @relation(fields: [otpRequestId], references: [id], onDelete: SetNull)
+
+  @@index([deviceId, status])
+  @@index([recipientE164])
+  @@index([status, createdAt])
+  @@map("sms_messages")
+}
+
+enum SmsStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  RETRYING
+}
+
+// =============================================================================
+// DEVICES
+// =============================================================================
+model Device {
+  id              String       @id @default(uuid())
+  name            String
+  textbeeDeviceId String       @unique
+  apiKeyEncrypted String
+  priority        Int          @default(100)
+  status          DeviceStatus @default(ACTIVE)
+  batteryLevel    Int?
+  lastHeartbeat   DateTime?
+  failureCount    Int          @default(0)
+  circuitState    CircuitState @default(CLOSED)
+  circuitOpenedAt DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  smsMessages     SmsMessage[]
+
+  @@index([status, priority])
+  @@map("devices")
+}
+
+enum DeviceStatus {
+  ACTIVE
+  INACTIVE
+  OFFLINE
+}
+
+enum CircuitState {
+  CLOSED
+  OPEN
+  HALF_OPEN
+}
+
+// =============================================================================
+// AUDIT LOGS
+// =============================================================================
+model AuditLog {
+  id            String   @id @default(uuid())
+  eventType     String
+  actorType     String
+  actorId       String?
+  targetType    String?
+  targetId      String?
+  metadata      Json?
+  ipAddress     String?
+  correlationId String?
+  createdAt     DateTime @default(now())
+
+  @@index([eventType, createdAt])
+  @@index([actorId])
+  @@index([targetId])
+  @@map("audit_logs")
+}
+
+// =============================================================================
+// BLACKLIST
+// =============================================================================
+model Blacklist {
+  id        String        @id @default(uuid())
+  type      BlacklistType
+  value     String
+  reason    String?
+  createdAt DateTime      @default(now())
+  expiresAt DateTime?
+
+  @@unique([type, value])
+  @@index([type, value])
+  @@map("blacklists")
+}
+
+enum BlacklistType {
+  PHONE
+  IP
+  DEVICE
+}
+
+// =============================================================================
+// CONTACTS
+// =============================================================================
+model Contact {
+  id         String              @id @default(uuid())
+  phoneE164  String              @unique
+  name       String?
+  email      String?
+  metadata   Json?
+  isActive   Boolean             @default(true)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  lists      ContactListMember[]
+  deliveries CampaignDelivery[]
+
+  @@index([phoneE164])
+  @@index([isActive])
+  @@map("contacts")
+}
+
+model ContactList {
+  id          String              @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  members     ContactListMember[]
+  campaigns   Campaign[]
+
+  @@index([name])
+  @@map("contact_lists")
+}
+
+model ContactListMember {
+  contactId String
+  listId    String
+  addedAt   DateTime    @default(now())
+  contact   Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  list      ContactList @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, listId])
+  @@index([listId])
+  @@map("contact_list_members")
+}
+
+// =============================================================================
+// CAMPAIGNS
+// =============================================================================
+model Campaign {
+  id              String             @id @default(uuid())
+  name            String
+  messageTemplate String
+  listId          String
+  status          CampaignStatus     @default(DRAFT)
+  totalRecipients Int                @default(0)
+  sentCount       Int                @default(0)
+  failedCount     Int                @default(0)
+  tpsLimit        Int                @default(1)
+  launchedAt      DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  list            ContactList        @relation(fields: [listId], references: [id], onDelete: Restrict)
+  deliveries      CampaignDelivery[]
+
+  @@index([status, createdAt])
+  @@map("campaigns")
+}
+
+enum CampaignStatus {
+  DRAFT
+  QUEUED
+  RUNNING
+  PAUSED
+  COMPLETED
+  FAILED
+  CANCELED
+}
+
+model CampaignDelivery {
+  id           String         @id @default(uuid())
+  campaignId   String
+  contactId    String
+  smsMessageId String?
+  status       DeliveryStatus @default(PENDING)
+  errorCode    String?
+  errorMessage String?
+  sentAt       DateTime?
+  createdAt    DateTime       @default(now())
+  campaign     Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact      Contact        @relation(fields: [contactId], references: [id], onDelete: Restrict)
+
+  @@unique([campaignId, contactId])
+  @@index([campaignId, status])
+  @@map("campaign_deliveries")
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
