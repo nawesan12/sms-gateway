@@ -1,49 +1,42 @@
 # =============================================================
-# Render Blueprint · SMS Gateway
+# Render Blueprint · SMS Gateway (sin Docker, runtime Node)
 #
-# Pegale este repo a una cuenta Render y "New Blueprint":
-# Render crea automáticamente: Postgres + Redis + API web + Worker.
+# Postgres y Redis NO se provisionan acá. Usás los tuyos:
+#   - Supabase Postgres → DATABASE_URL
+#   - Upstash Redis     → REDIS_URL
 #
-# IMPORTANTE: completá los secrets manualmente en cada servicio
-# antes del primer deploy:
+# Antes del primer deploy, en el dashboard de cada service
+# pegá las env vars marcadas como `sync: false`:
+#   - DATABASE_URL
+#   - REDIS_URL
 #   - JWT_PRIVATE_KEY_B64
 #   - JWT_PUBLIC_KEY_B64
 #   - MASTER_ENCRYPTION_KEY_B64
 #   - ADMIN_BOOTSTRAP_TOKEN
+#   - APP_BASE_URL
 #
-# Si vas a usar la imagen ya pusheada a Docker Hub, reemplazá
-# los `dockerfilePath` por:
-#   image:
-#     url: docker.io/<usuario>/sms-gateway:latest
+# Notas:
+# - DATABASE_URL de Supabase: usá la URL "Connection string" que
+#   termina en ?sslmode=require (no hace falta pooler).
+# - REDIS_URL de Upstash: viene como rediss://default:<token>@host:port
+#   (TLS, ioredis lo maneja solo).
 # =============================================================
 
-databases:
-  - name: sms-gateway-db
-    databaseName: sms_gateway
-    user: sms
-    plan: free        # free / starter / standard
-    region: oregon    # oregon / ohio / virginia / frankfurt / singapore
-
 services:
-  # ------------------- Redis (Key Value) -------------------
-  - type: keyvalue
-    name: sms-gateway-redis
-    plan: free
-    region: oregon
-    ipAllowList: []   # vacío = solo accesible desde otros servicios Render
-    maxmemoryPolicy: noeviction
-
   # ----------------------- API web ------------------------
   - type: web
     name: sms-gateway-api
-    runtime: docker
-    plan: starter      # free no aguanta el build; starter $7/mo recomendado
+    runtime: node
+    plan: starter
     region: oregon
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    healthCheckPath: /health
     autoDeploy: true
+    healthCheckPath: /health
+    buildCommand: npm ci && npx prisma generate && npm run build && npm ci --prefix web && npm run build --prefix web
+    preDeployCommand: npx prisma migrate deploy
+    startCommand: node dist/index.js
     envVars:
+      - key: NODE_VERSION
+        value: "22"
       - key: NODE_ENV
         value: production
       - key: LOG_LEVEL
@@ -53,21 +46,18 @@ services:
       - key: HOST
         value: 0.0.0.0
       - key: DATABASE_URL
-        fromDatabase:
-          name: sms-gateway-db
-          property: connectionString
+        sync: false
       - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: sms-gateway-redis
-          property: connectionString
+        sync: false
       - key: JWT_PRIVATE_KEY_B64
-        sync: false        # se setea manual en el dashboard
+        sync: false
       - key: JWT_PUBLIC_KEY_B64
         sync: false
       - key: MASTER_ENCRYPTION_KEY_B64
         sync: false
       - key: ADMIN_BOOTSTRAP_TOKEN
+        sync: false
+      - key: APP_BASE_URL
         sync: false
       - key: JWT_ACCESS_TTL_SEC
         value: "900"
@@ -100,7 +90,7 @@ services:
       - key: RATE_LIMIT_PHONE_COOLDOWN_SEC
         value: "60"
       - key: CORS_ORIGINS
-        value: ""        # mismo origen — backend sirve la UI
+        value: ""
       - key: DEFAULT_PHONE_REGION
         value: AR
       - key: WORKER_CONCURRENCY
@@ -117,39 +107,27 @@ services:
         value: "true"
       - key: METRICS_IP_ALLOWLIST
         value: 127.0.0.1,::1
-      - key: APP_BASE_URL
-        sync: false       # setear con el dominio real desde el dashboard
 
   # ----------------------- Worker -------------------------
   - type: worker
     name: sms-gateway-worker
-    runtime: docker
+    runtime: node
     plan: starter
     region: oregon
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    dockerCommand: node dist/worker.js
     autoDeploy: true
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: node dist/worker.js
     envVars:
-      - fromGroup: sms-gateway-shared
-      # las shared se completan en envVarGroups abajo
-
-envVarGroups:
-  - name: sms-gateway-shared
-    envVars:
+      - key: NODE_VERSION
+        value: "22"
       - key: NODE_ENV
         value: production
       - key: LOG_LEVEL
         value: info
       - key: DATABASE_URL
-        fromDatabase:
-          name: sms-gateway-db
-          property: connectionString
+        sync: false
       - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: sms-gateway-redis
-          property: connectionString
+        sync: false
       - key: MASTER_ENCRYPTION_KEY_B64
         sync: false
       - key: TEXTBEE_BASE_URL
