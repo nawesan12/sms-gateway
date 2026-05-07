@@ -117,6 +117,8 @@ services:
         value: "true"
       - key: METRICS_IP_ALLOWLIST
         value: 127.0.0.1,::1
+      - key: APP_BASE_URL
+        sync: false       # setear con el dominio real desde el dashboard
 
   # ----------------------- Worker -------------------------
   - type: worker

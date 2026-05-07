@@ -1,6 +1,6 @@
 import { DeviceStatus, type Device, type PrismaClient } from '@prisma/client';
 import type { AppLogger } from '@/lib/logger-types.js';
-import { DeviceCrypto } from './crypto.js';
+import type { DeviceCrypto } from './crypto.js';
 import { AppError } from '@/plugins/error-handler.js';
 import { ERROR_CODES, AUDIT_EVENTS } from '@/config/constants.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
@@ -72,7 +72,11 @@ export class DevicesService {
     return device;
   }
 
-  async create(input: CreateDeviceInput, actorId: string, correlationId: string): Promise<PublicDevice> {
+  async create(
+    input: CreateDeviceInput,
+    actorId: string,
+    correlationId: string,
+  ): Promise<PublicDevice> {
     const exists = await this.prisma.device.findUnique({
       where: { textbeeDeviceId: input.textbeeDeviceId },
     });
@@ -100,7 +104,12 @@ export class DevicesService {
     return this.toPublic(device);
   }
 
-  async update(id: string, input: UpdateDeviceInput, actorId: string, correlationId: string): Promise<PublicDevice> {
+  async update(
+    id: string,
+    input: UpdateDeviceInput,
+    actorId: string,
+    correlationId: string,
+  ): Promise<PublicDevice> {
     const device = await this.getById(id);
     const updated = await this.prisma.device.update({
       where: { id: device.id },

@@ -12,14 +12,19 @@ datasource db {
 // USERS
 // =============================================================================
 model User {
-  id          String       @id @default(uuid())
-  phoneE164   String       @unique
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  lastLoginAt DateTime?
-  isBlocked   Boolean      @default(false)
-  role        UserRole     @default(USER)
-  otpRequests OtpRequest[]
+  id                  String             @id @default(uuid())
+  phoneE164           String             @unique
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  lastLoginAt         DateTime?
+  isBlocked           Boolean            @default(false)
+  role                UserRole           @default(USER)
+  accessTokenHash     String?            @unique
+  accessTokenIssuedAt DateTime?
+  otpRequests         OtpRequest[]
+  tokenBalance        TokenBalance?
+  tokenTransactions   TokenTransaction[]
+  campaigns           Campaign[]
 
   @@index([phoneE164])
   @@index([role])
@@ -59,21 +64,25 @@ model OtpRequest {
 // SMS MESSAGES
 // =============================================================================
 model SmsMessage {
-  id               String      @id @default(uuid())
-  otpRequestId     String?     @unique
-  deviceId         String
-  recipientE164    String
-  status           SmsStatus   @default(PENDING)
-  textbeeMessageId String?
-  errorCode        String?
-  errorMessage     String?
-  sentAt           DateTime?
-  deliveredAt      DateTime?
-  failedAt         DateTime?
-  retryCount       Int         @default(0)
-  createdAt        DateTime    @default(now())
-  device           Device      @relation(fields: [deviceId], references: [id], onDelete: Restrict)
-  otpRequest       OtpRequest? @relation(fields: [otpRequestId], references: [id], onDelete: SetNull)
+  id                 String            @id @default(uuid())
+  otpRequestId       String?           @unique
+  deviceId           String
+  recipientE164      String
+  status             SmsStatus         @default(PENDING)
+  textbeeMessageId   String?
+  errorCode          String?
+  errorMessage       String?
+  sentAt             DateTime?
+  deliveredAt        DateTime?
+  failedAt           DateTime?
+  retryCount         Int               @default(0)
+  tokensCost         Int               @default(1)
+  tokenTransactionId String?           @unique
+  createdAt          DateTime          @default(now())
+  device             Device            @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  otpRequest         OtpRequest?       @relation(fields: [otpRequestId], references: [id], onDelete: SetNull)
+  tokenTransaction   TokenTransaction? @relation("SmsToReservation", fields: [tokenTransactionId], references: [id], onDelete: SetNull)
+  tokenTransactions  TokenTransaction[] @relation("SmsToTransactions")
 
   @@index([deviceId, status])
   @@index([recipientE164])
@@ -220,6 +229,7 @@ model Campaign {
   name            String
   messageTemplate String
   listId          String
+  ownerUserId     String?
   status          CampaignStatus     @default(DRAFT)
   totalRecipients Int                @default(0)
   sentCount       Int                @default(0)
@@ -230,9 +240,11 @@ model Campaign {
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
   list            ContactList        @relation(fields: [listId], references: [id], onDelete: Restrict)
+  ownerUser       User?              @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
   deliveries      CampaignDelivery[]
 
   @@index([status, createdAt])
+  @@index([ownerUserId])
   @@map("campaigns")
 }
 
@@ -269,4 +281,59 @@ enum DeliveryStatus {
   SENT
   FAILED
   SKIPPED
+}
+
+// =============================================================================
+// TOKEN BALANCE (1 fila por User/cliente — multi-tenant)
+// =============================================================================
+model TokenBalance {
+  userId    String   @id
+  amount    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("token_balance")
+}
+
+model TokenTransaction {
+  id            String                 @id @default(uuid())
+  userId        String
+  type          TokenTransactionType
+  status        TokenTransactionStatus @default(RESERVED)
+  amount        Int
+  balanceAfter  Int
+  smsMessageId  String?
+  reason        String?
+  actorType     String?
+  actorId       String?
+  correlationId String?
+  metadata      Json?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  user                 User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  smsMessage           SmsMessage? @relation("SmsToTransactions", fields: [smsMessageId], references: [id], onDelete: SetNull)
+  reservedBySmsMessage SmsMessage? @relation("SmsToReservation")
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+  @@index([status, createdAt])
+  @@index([smsMessageId])
+  @@map("token_transactions")
+}
+
+enum TokenTransactionType {
+  PURCHASE
+  RESERVATION
+  COMMIT
+  REFUND
+  ADJUSTMENT
+}
+
+enum TokenTransactionStatus {
+  RESERVED
+  COMMITTED
+  REFUNDED
 }

@@ -5,14 +5,16 @@ import type { AppLogger } from '@/lib/logger-types.js';
 import { validateAndNormalizePhone } from '@/lib/phone.js';
 import { AppError } from '@/plugins/error-handler.js';
 import { ERROR_CODES } from '@/config/constants.js';
-import { SmsService } from '@/modules/sms/sms.service.js';
+import type { SmsService } from '@/modules/sms/sms.service.js';
 import type { DeviceRouter } from '@/modules/sms/device-router.js';
 import type { SmsSendJob } from '@/queue/jobs/job.types.js';
+import type { TokensService } from '@/modules/tokens/tokens.service.js';
 
 export interface SendOneInput {
   rawPhone: string;
   message: string;
   contactId?: string | null;
+  ownerUserId: string;
   correlationId: string;
 }
 
@@ -30,6 +32,7 @@ export class MessagingService {
     private readonly smsService: SmsService,
     private readonly router: DeviceRouter,
     private readonly smsQueue: Queue<SmsSendJob>,
+    private readonly tokens: TokensService,
   ) {}
 
   async sendOne(input: SendOneInput): Promise<SendOneOutput> {
@@ -58,24 +61,60 @@ export class MessagingService {
       recipientE164: validation.e164,
     });
 
-    await this.smsQueue.add(
-      'sms.send',
-      {
-        smsMessageId: smsId,
-        recipientE164: validation.e164,
-        message,
-        correlationId: input.correlationId,
-      },
-      {
-        attempts: this.env.WORKER_MAX_RETRIES + 1,
-        backoff: { type: 'exponential', delay: this.env.WORKER_BACKOFF_MS },
-        removeOnComplete: { age: 3600, count: 1000 },
-        removeOnFail: { age: 24 * 3600 },
-      },
-    );
+    const reservation = await this.tokens.reserve({
+      userId: input.ownerUserId,
+      amount: 1,
+      smsMessageId: smsId,
+      reason: 'sms.individual',
+      correlationId: input.correlationId,
+    });
+    if (!reservation.ok) {
+      await this.smsService.finalizeFailure(
+        smsId,
+        ERROR_CODES.INSUFFICIENT_TOKENS,
+        'no token balance',
+      );
+      throw new AppError(ERROR_CODES.INSUFFICIENT_TOKENS, 'Insufficient token balance', 402, {
+        balance: reservation.balance,
+        required: reservation.required,
+      });
+    }
+
+    await this.prisma.smsMessage.update({
+      where: { id: smsId },
+      data: { tokenTransactionId: reservation.transactionId },
+    });
+
+    try {
+      await this.smsQueue.add(
+        'sms.send',
+        {
+          smsMessageId: smsId,
+          tokenTransactionId: reservation.transactionId,
+          recipientE164: validation.e164,
+          message,
+          correlationId: input.correlationId,
+        },
+        {
+          attempts: this.env.WORKER_MAX_RETRIES + 1,
+          backoff: { type: 'exponential', delay: this.env.WORKER_BACKOFF_MS },
+          removeOnComplete: { age: 3600, count: 1000 },
+          removeOnFail: { age: 24 * 3600 },
+        },
+      );
+    } catch (err) {
+      await this.tokens.refund(reservation.transactionId, 'enqueue_failed');
+      await this.smsService.finalizeFailure(smsId, 'ENQUEUE_FAILED', (err as Error).message);
+      throw err;
+    }
 
     this.logger.info(
-      { smsMessageId: smsId, deviceId: device.id, contactId: input.contactId ?? null },
+      {
+        smsMessageId: smsId,
+        deviceId: device.id,
+        contactId: input.contactId ?? null,
+        transactionId: reservation.transactionId,
+      },
       'sms enqueued',
     );
 

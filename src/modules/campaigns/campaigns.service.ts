@@ -10,6 +10,7 @@ export interface CreateCampaignInput {
   name: string;
   messageTemplate: string;
   listId: string;
+  ownerUserId: string;
   tpsLimit?: number;
 }
 
@@ -53,6 +54,7 @@ export class CampaignsService {
         name: input.name,
         messageTemplate: input.messageTemplate,
         listId: input.listId,
+        ownerUserId: input.ownerUserId,
         tpsLimit: input.tpsLimit ?? 1,
         totalRecipients: list._count.members,
       },

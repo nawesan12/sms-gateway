@@ -17,7 +17,10 @@ afterEach(() => {
 describe('TextBeeProvider.sendSMS', () => {
   it('envia con exito y devuelve providerMessageId', async () => {
     const scope = nock('https://api.textbee.dev')
-      .post('/api/v1/gateway/devices/dev-1/send-sms', { recipients: ['+5491150000001'], message: 'hola' })
+      .post('/api/v1/gateway/devices/dev-1/send-sms', {
+        recipients: ['+5491150000001'],
+        message: 'hola',
+      })
       .matchHeader('x-api-key', 'k')
       .reply(200, { data: { messageId: 'mid-123' } });
 

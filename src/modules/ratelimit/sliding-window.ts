@@ -39,15 +39,11 @@ export class SlidingWindow {
     const now = Date.now();
     const windowMs = windowSec * 1000;
     const member = `${now}:${Math.random().toString(36).slice(2, 10)}`;
-    const result = (await this.redis.eval(
-      LUA,
-      1,
-      key,
-      now,
-      windowMs,
-      max,
-      member,
-    )) as [number, number, number];
+    const result = (await this.redis.eval(LUA, 1, key, now, windowMs, max, member)) as [
+      number,
+      number,
+      number,
+    ];
     return {
       allowed: result[0] === 1,
       count: result[1],

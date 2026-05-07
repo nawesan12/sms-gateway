@@ -48,3 +48,10 @@ export const ErrorResponse = Type.Object({
   }),
   meta: Type.Object({ requestId: Type.String(), timestamp: Type.String() }),
 });
+
+export const CreateAccessLinkBody = Type.Object({
+  phoneE164: Type.String({ minLength: 1, maxLength: 32 }),
+  role: Type.Optional(Type.Union([Type.Literal('ADMIN'), Type.Literal('USER')])),
+  initialTokens: Type.Optional(Type.Integer({ minimum: 0, maximum: 1_000_000 })),
+});
+export type CreateAccessLinkBodyT = Static<typeof CreateAccessLinkBody>;

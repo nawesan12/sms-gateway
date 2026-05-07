@@ -4,9 +4,15 @@ import { SmsService } from '@/modules/sms/sms.service.js';
 import { DeviceRouter } from '@/modules/sms/device-router.js';
 import { DeviceCrypto } from '@/modules/devices/crypto.js';
 import { buildSmsQueue } from '@/queue/queues.js';
+import { TokensService } from '@/modules/tokens/tokens.service.js';
 import { MessagingService } from './messaging.service.js';
 import { MessagingController } from './messaging.controller.js';
-import { SendSmsBody, SmsIdParam, type SendSmsBodyT, type SmsIdParamT } from './messaging.schemas.js';
+import {
+  SendSmsBody,
+  SmsIdParam,
+  type SendSmsBodyT,
+  type SmsIdParamT,
+} from './messaging.schemas.js';
 
 export async function registerMessagingRoutes(app: FastifyInstance): Promise<void> {
   const env = app.env;
@@ -14,6 +20,7 @@ export async function registerMessagingRoutes(app: FastifyInstance): Promise<voi
   const crypto = new DeviceCrypto(env.MASTER_ENCRYPTION_KEY_B64);
   const router = DeviceRouter.create(app.prisma, env, app.log);
   const smsService = new SmsService(app.prisma, env, app.log, provider, router, crypto);
+  const tokens = new TokensService(app.prisma, app.log);
   const { queue: smsQueue, client: smsQueueClient } = buildSmsQueue(env);
 
   app.addHook('onClose', async () => {
@@ -21,7 +28,15 @@ export async function registerMessagingRoutes(app: FastifyInstance): Promise<voi
     await smsQueueClient.quit().catch(() => undefined);
   });
 
-  const service = new MessagingService(app.prisma, env, app.log, smsService, router, smsQueue);
+  const service = new MessagingService(
+    app.prisma,
+    env,
+    app.log,
+    smsService,
+    router,
+    smsQueue,
+    tokens,
+  );
   const controller = new MessagingController(service);
 
   app.post<{ Body: SendSmsBodyT }>(

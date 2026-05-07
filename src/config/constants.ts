@@ -15,6 +15,7 @@ export const ERROR_CODES = {
   NOT_FOUND: 'NOT_FOUND',
   VALIDATION: 'VALIDATION',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
+  INSUFFICIENT_TOKENS: 'INSUFFICIENT_TOKENS',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
@@ -33,6 +34,14 @@ export const AUDIT_EVENTS = {
   DEVICE_CIRCUIT_OPEN: 'device.circuit.open',
   DEVICE_CIRCUIT_CLOSE: 'device.circuit.close',
   ADMIN_LOGIN: 'admin.login',
+  TOKEN_TOPUP: 'token.topup',
+  TOKEN_RESERVED: 'token.reserved',
+  TOKEN_COMMITTED: 'token.committed',
+  TOKEN_REFUNDED: 'token.refunded',
+  TOKEN_INSUFFICIENT: 'token.insufficient',
+  CAMPAIGN_PAUSED_INSUFFICIENT_TOKENS: 'campaign.paused.insufficient_tokens',
+  ACCESS_TOKEN_ISSUED: 'access_token.issued',
+  ACCESS_TOKEN_USED: 'access_token.used',
 } as const;
 
 export const QUEUE_NAMES = {

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import nock from 'nock';
 import argon2 from 'argon2';
-import { Worker } from 'bullmq';
+import type { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import type { FastifyInstance } from 'fastify';
 import { createTestApp } from '@/../tests/helpers/test-app.js';

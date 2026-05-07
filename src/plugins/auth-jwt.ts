@@ -1,4 +1,5 @@
 import fp from 'fastify-plugin';
+import type { FastifyRequest } from 'fastify';
 import jwt from '@fastify/jwt';
 import { AppError } from './error-handler.js';
 import { ERROR_CODES } from '@/config/constants.js';
@@ -19,9 +20,13 @@ export default fp(
       verify: { algorithms: ['RS256'], allowedIss: env.JWT_ISSUER, allowedAud: env.JWT_AUDIENCE },
     });
 
-    app.decorate('authenticate', async (req: import('fastify').FastifyRequest) => {
+    app.decorate('authenticate', async (req: FastifyRequest) => {
       try {
-        const decoded = await req.jwtVerify<{ sub: string; phone: string; role: 'USER' | 'ADMIN' }>();
+        const decoded = await req.jwtVerify<{
+          sub: string;
+          phone: string;
+          role: 'USER' | 'ADMIN';
+        }>();
         req.authUser = { id: decoded.sub, phoneE164: decoded.phone, role: decoded.role };
       } catch {
         throw new AppError(ERROR_CODES.UNAUTHORIZED, 'Invalid or missing token', 401);
@@ -33,6 +38,6 @@ export default fp(
 
 declare module 'fastify' {
   interface FastifyInstance {
-    authenticate: (req: import('fastify').FastifyRequest) => Promise<void>;
+    authenticate: (req: FastifyRequest) => Promise<void>;
   }
 }

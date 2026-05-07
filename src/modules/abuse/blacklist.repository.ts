@@ -1,4 +1,5 @@
-import { BlacklistType, type Blacklist, type PrismaClient } from '@prisma/client';
+import type { BlacklistType } from '@prisma/client';
+import { type Blacklist, type PrismaClient } from '@prisma/client';
 
 export class BlacklistRepository {
   constructor(private readonly prisma: PrismaClient) {}

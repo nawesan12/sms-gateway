@@ -1,9 +1,13 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { AuthService, SendCodeOutput, VerifyCodeOutput } from './auth.service.js';
-import type { SendCodeBodyT, VerifyCodeBodyT } from './auth.schemas.js';
+import type { AccessTokenService } from './access-token.service.js';
+import type { CreateAccessLinkBodyT, SendCodeBodyT, VerifyCodeBodyT } from './auth.schemas.js';
 
 export class AuthController {
-  constructor(private readonly service: AuthService) {}
+  constructor(
+    private readonly service: AuthService,
+    private readonly accessTokens: AccessTokenService,
+  ) {}
 
   sendCode = async (
     req: FastifyRequest<{ Body: SendCodeBodyT }>,
@@ -31,6 +35,26 @@ export class AuthController {
       rawPhone: req.body.phone,
       code: req.body.code,
       ipAddress: req.ip ?? null,
+      correlationId: req.correlationId,
+    });
+    reply.send({
+      success: true,
+      data: out,
+      error: null,
+      meta: { requestId: req.correlationId, timestamp: new Date().toISOString() },
+    });
+  };
+
+  createAccessLink = async (
+    req: FastifyRequest<{ Body: CreateAccessLinkBodyT }>,
+    reply: FastifyReply,
+  ): Promise<void> => {
+    const out = await this.accessTokens.createAccessLink({
+      rawPhone: req.body.phoneE164,
+      role: req.body.role ?? 'ADMIN',
+      initialTokens: req.body.initialTokens,
+      actorId: req.authUser?.id,
+      actorType: 'admin',
       correlationId: req.correlationId,
     });
     reply.send({

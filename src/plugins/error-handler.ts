@@ -21,6 +21,7 @@ const STATUS_BY_CODE: Partial<Record<ErrorCode, number>> = {
   [ERROR_CODES.RATE_LIMITED_IP]: 429,
   [ERROR_CODES.RATE_LIMITED_PHONE]: 429,
   [ERROR_CODES.COOLDOWN_ACTIVE]: 429,
+  [ERROR_CODES.INSUFFICIENT_TOKENS]: 402,
   [ERROR_CODES.INTERNAL_ERROR]: 500,
   [ERROR_CODES.SMS_PROVIDER_DOWN]: 502,
   [ERROR_CODES.DEVICE_OFFLINE]: 503,
@@ -81,7 +82,6 @@ export default fp(
         meta: { requestId: correlationId, timestamp: new Date().toISOString() },
       });
     });
-
   },
   { name: 'error-handler' },
 );

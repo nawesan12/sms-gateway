@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
@@ -9,6 +9,17 @@ export function LoginPage() {
   const [token, setT] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Auto-login desde el link de acceso: /login?token=XYZ
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const linkToken = params.get('token');
+    if (!linkToken) return;
+    setToken(linkToken.trim());
+    // Limpiar la URL para que el token no quede en history.
+    window.history.replaceState({}, '', '/login');
+    navigate('/', { replace: true });
+  }, [navigate]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,7 +33,13 @@ export function LoginPage() {
     const isViteDev = import.meta.env.DEV && location.port === '5173';
     const url = isViteDev ? '/api/v1/devices' : '/v1/devices';
     try {
-      const res = await fetch(url, { headers: { 'x-bootstrap-token': token.trim() } });
+      // Probamos como Bearer (access token o JWT) y como bootstrap a la vez.
+      const res = await fetch(url, {
+        headers: {
+          'x-bootstrap-token': token.trim(),
+          authorization: `Bearer ${token.trim()}`,
+        },
+      });
       if (!res.ok) {
         setError('Token inválido');
         setSubmitting(false);

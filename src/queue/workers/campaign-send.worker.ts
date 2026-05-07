@@ -3,11 +3,13 @@ import IORedis from 'ioredis';
 import { CampaignStatus, DeliveryStatus, PrismaClient } from '@prisma/client';
 import type { AppEnv } from '@/config/env.js';
 import type { AppLogger } from '@/lib/logger-types.js';
-import { QUEUE_NAMES } from '@/config/constants.js';
+import { AUDIT_EVENTS, ERROR_CODES, QUEUE_NAMES } from '@/config/constants.js';
 import { TextBeeProvider } from '@/modules/sms/providers/textbee.provider.js';
 import { SmsService } from '@/modules/sms/sms.service.js';
 import { DeviceRouter } from '@/modules/sms/device-router.js';
 import { DeviceCrypto } from '@/modules/devices/crypto.js';
+import { TokensService } from '@/modules/tokens/tokens.service.js';
+import { AuditService } from '@/modules/audit/audit.service.js';
 import { renderTemplate } from '@/lib/template.js';
 import type { CampaignSendJob } from '../jobs/job.types.js';
 
@@ -22,6 +24,8 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
   const crypto = new DeviceCrypto(env.MASTER_ENCRYPTION_KEY_B64);
   const router = DeviceRouter.create(prisma, env, logger);
   const sms = new SmsService(prisma, env, logger, provider, router, crypto);
+  const tokens = new TokensService(prisma, logger);
+  const audit = new AuditService(prisma, logger);
 
   const connectionClient = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
 
@@ -67,12 +71,82 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
         phone: delivery.contact.phoneE164,
       });
 
+      // ownerUserId obligatorio para debitar tokens de la campaña.
+      const ownerUserId = delivery.campaign.ownerUserId;
+      if (!ownerUserId) {
+        childLog.error('campaign without ownerUserId — cannot debit tokens, marking failed');
+        await prisma.$transaction([
+          prisma.campaignDelivery.update({
+            where: { id: deliveryId },
+            data: {
+              status: DeliveryStatus.FAILED,
+              errorCode: 'NO_OWNER',
+              errorMessage: 'Campaign has no ownerUserId',
+            },
+          }),
+          prisma.campaign.update({
+            where: { id: campaignId },
+            data: { failedCount: { increment: 1 }, status: CampaignStatus.FAILED },
+          }),
+        ]);
+        return { ok: false };
+      }
+
       try {
         const device = await router.select();
         const smsId = await sms.createPending({
           deviceId: device.id,
           recipientE164: delivery.contact.phoneE164,
         });
+
+        const reservation = await tokens.reserve({
+          userId: ownerUserId,
+          amount: 1,
+          smsMessageId: smsId,
+          reason: 'sms.campaign',
+          correlationId,
+        });
+        if (!reservation.ok) {
+          await sms.finalizeFailure(smsId, ERROR_CODES.INSUFFICIENT_TOKENS, 'no token balance');
+          await prisma.$transaction([
+            prisma.campaignDelivery.update({
+              where: { id: deliveryId },
+              data: {
+                status: DeliveryStatus.FAILED,
+                smsMessageId: smsId,
+                errorCode: ERROR_CODES.INSUFFICIENT_TOKENS,
+                errorMessage: `balance=${reservation.balance}`,
+              },
+            }),
+            prisma.campaign.update({
+              where: { id: campaignId },
+              data: {
+                failedCount: { increment: 1 },
+                status: CampaignStatus.PAUSED,
+              },
+            }),
+          ]);
+          await audit.record({
+            eventType: AUDIT_EVENTS.CAMPAIGN_PAUSED_INSUFFICIENT_TOKENS,
+            actorType: 'system',
+            actorId: ownerUserId,
+            targetType: 'campaign',
+            targetId: campaignId,
+            correlationId,
+            metadata: { ownerUserId, balance: reservation.balance, deliveryId },
+          });
+          childLog.warn(
+            { ownerUserId, balance: reservation.balance },
+            'campaign paused: insufficient tokens',
+          );
+          return { ok: false };
+        }
+
+        await prisma.smsMessage.update({
+          where: { id: smsId },
+          data: { tokenTransactionId: reservation.transactionId },
+        });
+
         const { result } = await sms.dispatch({
           smsMessageId: smsId,
           recipientE164: delivery.contact.phoneE164,
@@ -80,6 +154,7 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
         });
 
         if (result.ok) {
+          await tokens.commit(reservation.transactionId);
           await prisma.$transaction([
             prisma.campaignDelivery.update({
               where: { id: deliveryId },
@@ -95,6 +170,7 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
             }),
           ]);
         } else {
+          await tokens.refund(reservation.transactionId, 'campaign_dispatch_failed');
           await sms.finalizeFailure(
             smsId,
             result.errorCode ?? 'UNKNOWN',

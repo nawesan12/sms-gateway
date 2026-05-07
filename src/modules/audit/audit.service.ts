@@ -16,7 +16,10 @@ export interface AuditEvent {
 export class AuditService {
   private readonly repo: AuditRepository;
 
-  constructor(prisma: PrismaClient, private readonly logger: AppLogger) {
+  constructor(
+    prisma: PrismaClient,
+    private readonly logger: AppLogger,
+  ) {
     this.repo = new AuditRepository(prisma);
   }
 

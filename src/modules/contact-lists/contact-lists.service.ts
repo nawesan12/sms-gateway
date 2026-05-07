@@ -113,7 +113,10 @@ export class ContactListsService {
   }
 
   private async assertExists(id: string) {
-    const exists = await this.prisma.contactList.findUnique({ where: { id }, select: { id: true } });
+    const exists = await this.prisma.contactList.findUnique({
+      where: { id },
+      select: { id: true },
+    });
     if (!exists) throw new AppError(ERROR_CODES.NOT_FOUND, 'List not found', 404);
   }
 }

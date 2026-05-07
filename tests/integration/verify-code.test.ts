@@ -20,7 +20,10 @@ beforeEach(async () => {
   await truncateAll(getTestPrisma());
 });
 
-async function seedActiveOtp(code: string, opts: { expiresInSec?: number; consumed?: boolean } = {}) {
+async function seedActiveOtp(
+  code: string,
+  opts: { expiresInSec?: number; consumed?: boolean } = {},
+) {
   const prisma = getTestPrisma();
   const codeHash = await argon2.hash(code, { type: argon2.argon2id });
   return prisma.otpRequest.create({

@@ -1,5 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { CampaignStatus } from '@prisma/client';
+import { AppError } from '@/plugins/error-handler.js';
+import { ERROR_CODES } from '@/config/constants.js';
 import type { CampaignsService } from './campaigns.service.js';
 import type {
   CampaignDeliveriesQueryT,
@@ -27,11 +29,19 @@ export class CampaignsController {
     req: FastifyRequest<{ Body: CreateCampaignBodyT }>,
     reply: FastifyReply,
   ): Promise<void> => {
+    if (!req.authUser || req.authUser.id === 'bootstrap') {
+      throw new AppError(
+        ERROR_CODES.FORBIDDEN,
+        'Creating campaigns requires a client access token (operator bootstrap is for admin tasks only)',
+        403,
+      );
+    }
     const out = await this.service.create(
       {
         name: req.body.name,
         messageTemplate: req.body.messageTemplate,
         listId: req.body.listId,
+        ownerUserId: req.authUser.id,
         tpsLimit: req.body.tpsLimit,
       },
       req.correlationId,

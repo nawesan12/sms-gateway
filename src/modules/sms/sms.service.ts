@@ -1,12 +1,12 @@
 import { SmsStatus, type PrismaClient, type Device } from '@prisma/client';
 import type { AppEnv } from '@/config/env.js';
 import type { AppLogger } from '@/lib/logger-types.js';
-import { DeviceCrypto } from '@/modules/devices/crypto.js';
+import type { DeviceCrypto } from '@/modules/devices/crypto.js';
 import { metrics } from '@/plugins/metrics.js';
 import type { SmsProvider } from './providers/sms-provider.interface.js';
 import type { SendResult } from './providers/textbee.types.js';
 import { SmsRepository } from './sms.repository.js';
-import { DeviceRouter } from './device-router.js';
+import type { DeviceRouter } from './device-router.js';
 
 export interface DispatchInput {
   smsMessageId: string;
@@ -54,7 +54,11 @@ export class SmsService {
     let device: Device;
     if (input.deviceIdHint) {
       const candidate = await this.prisma.device.findUnique({ where: { id: input.deviceIdHint } });
-      if (!candidate || exclude.includes(candidate.id) || !this.router.circuitBreaker.isAvailable(candidate)) {
+      if (
+        !candidate ||
+        exclude.includes(candidate.id) ||
+        !this.router.circuitBreaker.isAvailable(candidate)
+      ) {
         device = await this.router.select(exclude);
       } else {
         device = candidate;
@@ -86,14 +90,16 @@ export class SmsService {
       await this.router.circuitBreaker.recordSuccess(device.id);
       metrics.smsSent.labels({ device: device.name, result: 'ok' }).inc();
       this.logger.info(
-        { deviceId: device.id, smsId: input.smsMessageId, providerMessageId: result.providerMessageId },
+        {
+          deviceId: device.id,
+          smsId: input.smsMessageId,
+          providerMessageId: result.providerMessageId,
+        },
         'sms sent',
       );
     } else {
       await this.router.circuitBreaker.recordFailure(device.id);
-      metrics.smsErrors
-        .labels({ device: device.name, code: result.errorCode ?? 'UNKNOWN' })
-        .inc();
+      metrics.smsErrors.labels({ device: device.name, code: result.errorCode ?? 'UNKNOWN' }).inc();
       this.logger.warn(
         { deviceId: device.id, smsId: input.smsMessageId, errorCode: result.errorCode },
         'sms send failed',

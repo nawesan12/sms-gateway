@@ -70,11 +70,7 @@ export class ContactsService {
     try {
       rows = parseCsv(csv, { maxRows: 10_000 });
     } catch (err) {
-      throw new AppError(
-        ERROR_CODES.VALIDATION,
-        `CSV parse error: ${(err as Error).message}`,
-        400,
-      );
+      throw new AppError(ERROR_CODES.VALIDATION, `CSV parse error: ${(err as Error).message}`, 400);
     }
     if (rows.length === 0) return summary;
     if (!Object.prototype.hasOwnProperty.call(rows[0]!, 'phone')) {

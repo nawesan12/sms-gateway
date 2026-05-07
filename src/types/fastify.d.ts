@@ -1,4 +1,5 @@
 import 'fastify';
+import type { FastifyRequest } from 'fastify';
 import type { PrismaClient, User } from '@prisma/client';
 import type Redis from 'ioredis';
 import type { AppEnv } from '@/config/env.js';
@@ -25,5 +26,5 @@ declare module '@fastify/jwt' {
   }
 }
 
-export type AuthUser = NonNullable<import('fastify').FastifyRequest['authUser']>;
+export type AuthUser = NonNullable<FastifyRequest['authUser']>;
 export type _PrismaUser = User;

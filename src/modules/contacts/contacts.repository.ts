@@ -20,28 +20,27 @@ export class ContactsRepository {
     name?: string | null;
     email?: string | null;
   }): Promise<{ contact: Contact; created: boolean }> {
-    return this.prisma
-      .$transaction(async (tx) => {
-        const existing = await tx.contact.findUnique({ where: { phoneE164: data.phoneE164 } });
-        if (existing) {
-          const updated = await tx.contact.update({
-            where: { id: existing.id },
-            data: {
-              name: data.name ?? existing.name,
-              email: data.email ?? existing.email,
-            },
-          });
-          return { contact: updated, created: false };
-        }
-        const created = await tx.contact.create({
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.contact.findUnique({ where: { phoneE164: data.phoneE164 } });
+      if (existing) {
+        const updated = await tx.contact.update({
+          where: { id: existing.id },
           data: {
-            phoneE164: data.phoneE164,
-            name: data.name ?? null,
-            email: data.email ?? null,
+            name: data.name ?? existing.name,
+            email: data.email ?? existing.email,
           },
         });
-        return { contact: created, created: true };
+        return { contact: updated, created: false };
+      }
+      const created = await tx.contact.create({
+        data: {
+          phoneE164: data.phoneE164,
+          name: data.name ?? null,
+          email: data.email ?? null,
+        },
       });
+      return { contact: created, created: true };
+    });
   }
 
   delete(id: string): Promise<Contact> {

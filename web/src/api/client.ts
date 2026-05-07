@@ -35,7 +35,13 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     'content-type': 'application/json',
     ...((init.headers as Record<string, string>) ?? {}),
   };
-  if (token) headers['x-bootstrap-token'] = token;
+  // Mandamos los dos headers a la vez. El plugin auth-admin del backend
+  // chequea x-bootstrap-token primero (operador con env token); si no matchea,
+  // intenta Authorization Bearer (access token estático del cliente o JWT).
+  if (token) {
+    headers['x-bootstrap-token'] = token;
+    headers.authorization = `Bearer ${token}`;
+  }
 
   // En dev (Vite en :5173) usamos el proxy /api → backend.
   // Cuando el backend sirve la UI, las rutas son al mismo origen sin prefijo.

@@ -6,13 +6,16 @@ import { DeviceRouter } from '@/modules/sms/device-router.js';
 import { DeviceCrypto } from '@/modules/devices/crypto.js';
 import { buildSmsQueue } from '@/queue/queues.js';
 import { AuthService } from './auth.service.js';
+import { AccessTokenService } from './access-token.service.js';
 import { AuthController } from './auth.controller.js';
 import {
+  CreateAccessLinkBody,
   ErrorResponse,
   SendCodeBody,
   SendCodeResponse,
   VerifyCodeBody,
   VerifyCodeResponse,
+  type CreateAccessLinkBodyT,
   type SendCodeBodyT,
   type VerifyCodeBodyT,
 } from './auth.schemas.js';
@@ -49,7 +52,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     },
     rlClient,
   );
-  const controller = new AuthController(service);
+  const accessTokens = new AccessTokenService(app.prisma, env, app.log);
+  const controller = new AuthController(service, accessTokens);
 
   app.post<{ Body: SendCodeBodyT }>(
     '/v1/auth/send-code',
@@ -79,5 +83,18 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     controller.verifyCode,
+  );
+
+  app.post<{ Body: CreateAccessLinkBodyT }>(
+    '/v1/admin/auth/access-link',
+    {
+      preHandler: app.requireOperator,
+      schema: {
+        body: CreateAccessLinkBody,
+        tags: ['operator', 'auth'],
+        security: [{ bootstrapToken: [] }],
+      },
+    },
+    controller.createAccessLink,
   );
 }

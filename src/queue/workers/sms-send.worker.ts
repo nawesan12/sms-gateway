@@ -9,6 +9,7 @@ import { SmsService } from '@/modules/sms/sms.service.js';
 import { DeviceRouter } from '@/modules/sms/device-router.js';
 import { DeviceCrypto } from '@/modules/devices/crypto.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
+import { TokensService } from '@/modules/tokens/tokens.service.js';
 import { metrics } from '@/plugins/metrics.js';
 import { buildDlqQueue } from '../queues.js';
 import type { SmsSendJob } from '../jobs/job.types.js';
@@ -25,6 +26,7 @@ export function startSmsSendWorker(env: AppEnv, logger: AppLogger): SmsSendWorke
   const router = DeviceRouter.create(prisma, env, logger);
   const sms = new SmsService(prisma, env, logger, provider, router, crypto);
   const audit = new AuditService(prisma, logger);
+  const tokens = new TokensService(prisma, logger);
   const { queue: dlq, client: dlqClient } = buildDlqQueue(env);
 
   const connectionClient = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
@@ -61,13 +63,18 @@ export function startSmsSendWorker(env: AppEnv, logger: AppLogger): SmsSendWorke
             },
             correlationId,
           });
+          if (job.data.tokenTransactionId) {
+            await tokens.commit(job.data.tokenTransactionId);
+          }
           return { ok: true };
         }
 
         // Failed: mark this device as excluded and let BullMQ retry the job.
         const newExclude = [...exclude, device.id];
         await job.updateData({ ...job.data, excludeDeviceIds: newExclude });
-        throw new Error(`provider error: ${result.errorCode ?? 'unknown'} ${result.errorMessage ?? ''}`);
+        throw new Error(
+          `provider error: ${result.errorCode ?? 'unknown'} ${result.errorMessage ?? ''}`,
+        );
       } catch (err) {
         childLog.warn({ err }, 'sms-send job error');
         throw err;
@@ -99,6 +106,9 @@ export function startSmsSendWorker(env: AppEnv, logger: AppLogger): SmsSendWorke
         correlationId: job.data.correlationId,
       });
       await dlq.add('sms.dlq', job.data, { removeOnComplete: { age: 7 * 24 * 3600 } });
+      if (job.data.tokenTransactionId) {
+        await tokens.refund(job.data.tokenTransactionId, 'sms_failed_after_retries');
+      }
       metrics.smsSent.labels({ device: 'n/a', result: 'failed' }).inc();
     }
   });

@@ -1,9 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type {
-  CreateDeviceBodyT,
-  DeviceParamIdT,
-  UpdateDeviceBodyT,
-} from './devices.schemas.js';
+import type { CreateDeviceBodyT, DeviceParamIdT, UpdateDeviceBodyT } from './devices.schemas.js';
 import type { DevicesService } from './devices.service.js';
 
 export class DevicesController {

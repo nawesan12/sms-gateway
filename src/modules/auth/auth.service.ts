@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import type IORedis from 'ioredis';
 import type { AppLogger } from '@/lib/logger-types.js';
 import type { Queue } from 'bullmq';
 import { OtpService } from '@/modules/otp/otp.service.js';
@@ -6,7 +7,7 @@ import { RateLimitService } from '@/modules/ratelimit/rate-limit.service.js';
 import { AbuseService } from '@/modules/abuse/abuse.service.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { UserService } from '@/modules/users/user.service.js';
-import { SmsService } from '@/modules/sms/sms.service.js';
+import type { SmsService } from '@/modules/sms/sms.service.js';
 import type { DeviceRouter } from '@/modules/sms/device-router.js';
 import { validateAndNormalizePhone } from '@/lib/phone.js';
 import { maskPhone } from '@/lib/mask.js';
@@ -60,8 +61,16 @@ export interface AuthDeps {
   smsQueue: Queue<SmsSendJob>;
   smsService: SmsService;
   deviceRouter: DeviceRouter;
-  signAccessToken: (payload: { sub: string; phone: string; role: 'USER' | 'ADMIN' }) => Promise<string>;
-  signRefreshToken: (payload: { sub: string; phone: string; role: 'USER' | 'ADMIN' }) => Promise<string>;
+  signAccessToken: (payload: {
+    sub: string;
+    phone: string;
+    role: 'USER' | 'ADMIN';
+  }) => Promise<string>;
+  signRefreshToken: (payload: {
+    sub: string;
+    phone: string;
+    role: 'USER' | 'ADMIN';
+  }) => Promise<string>;
 }
 
 export class AuthService {
@@ -73,7 +82,7 @@ export class AuthService {
 
   constructor(
     private readonly deps: AuthDeps,
-    redisRateLimitClient: import('ioredis').default,
+    redisRateLimitClient: IORedis,
   ) {
     this.otp = new OtpService(deps.prisma, deps.env, deps.logger);
     this.rate = new RateLimitService(redisRateLimitClient, deps.env);
@@ -83,7 +92,10 @@ export class AuthService {
   }
 
   async sendCode(input: SendCodeInput): Promise<SendCodeOutput> {
-    const validation = validateAndNormalizePhone(input.rawPhone, this.deps.env.DEFAULT_PHONE_REGION);
+    const validation = validateAndNormalizePhone(
+      input.rawPhone,
+      this.deps.env.DEFAULT_PHONE_REGION,
+    );
     if (!validation.valid) {
       metrics.otpSent.labels({ result: 'invalid_phone' }).inc();
       throw invalidPhone();
@@ -181,7 +193,10 @@ export class AuthService {
   }
 
   async verifyCode(input: VerifyCodeInput): Promise<VerifyCodeOutput> {
-    const validation = validateAndNormalizePhone(input.rawPhone, this.deps.env.DEFAULT_PHONE_REGION);
+    const validation = validateAndNormalizePhone(
+      input.rawPhone,
+      this.deps.env.DEFAULT_PHONE_REGION,
+    );
     if (!validation.valid) throw invalidPhone();
     const phoneE164 = validation.e164;
 

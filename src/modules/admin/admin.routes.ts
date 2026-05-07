@@ -1,6 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import { AdminController } from './admin.controller.js';
-import { ListOtpQuery, ListSmsQuery, type ListOtpQueryT, type ListSmsQueryT } from './admin.schemas.js';
+import {
+  ListOtpQuery,
+  ListSmsQuery,
+  type ListOtpQueryT,
+  type ListSmsQueryT,
+} from './admin.schemas.js';
 
 export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
   const controller = new AdminController(app.prisma);

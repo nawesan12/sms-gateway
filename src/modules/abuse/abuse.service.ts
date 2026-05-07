@@ -15,7 +15,10 @@ export interface AbuseCheckResult {
 export class AbuseService {
   private readonly repo: BlacklistRepository;
 
-  constructor(prisma: PrismaClient, private readonly logger: AppLogger) {
+  constructor(
+    prisma: PrismaClient,
+    private readonly logger: AppLogger,
+  ) {
     this.repo = new BlacklistRepository(prisma);
   }
 

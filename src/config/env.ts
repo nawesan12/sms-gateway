@@ -2,13 +2,13 @@ import { z } from 'zod';
 
 const truthy = z
   .union([z.boolean(), z.string()])
-  .transform((v) => (typeof v === 'boolean' ? v : ['1', 'true', 'yes', 'on'].includes(v.toLowerCase())));
+  .transform((v) =>
+    typeof v === 'boolean' ? v : ['1', 'true', 'yes', 'on'].includes(v.toLowerCase()),
+  );
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  LOG_LEVEL: z
-    .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
-    .default('info'),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   PORT: z.coerce.number().int().positive().default(3000),
   HOST: z.string().default('0.0.0.0'),
 
@@ -18,7 +18,11 @@ const envSchema = z.object({
   JWT_PRIVATE_KEY_B64: z.string().min(1),
   JWT_PUBLIC_KEY_B64: z.string().min(1),
   JWT_ACCESS_TTL_SEC: z.coerce.number().int().positive().default(900),
-  JWT_REFRESH_TTL_SEC: z.coerce.number().int().positive().default(60 * 60 * 24 * 7),
+  JWT_REFRESH_TTL_SEC: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60 * 60 * 24 * 7),
   JWT_ISSUER: z.string().default('sms-gateway'),
   JWT_AUDIENCE: z.string().default('sms-gateway-clients'),
 
@@ -76,6 +80,8 @@ const envSchema = z.object({
         .map((s) => s.trim())
         .filter(Boolean),
     ),
+
+  APP_BASE_URL: z.string().url().default('http://localhost:3000'),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

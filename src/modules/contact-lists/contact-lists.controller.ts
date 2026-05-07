@@ -14,7 +14,12 @@ export class ContactListsController {
 
   list = async (req: FastifyRequest, reply: FastifyReply): Promise<void> => {
     const items = await this.service.list();
-    reply.send({ success: true, data: { items, total: items.length }, error: null, meta: meta(req) });
+    reply.send({
+      success: true,
+      data: { items, total: items.length },
+      error: null,
+      meta: meta(req),
+    });
   };
 
   create = async (

@@ -4,9 +4,12 @@
  * - Soporta letras, números, _, - en nombres de variable.
  * - No interpreta nada más (no condicionales, no escapes).
  */
-const TOKEN = /\{\{\s*([a-zA-Z0-9_\-]+)\s*\}\}/g;
+const TOKEN = /\{\{\s*([a-zA-Z0-9_-]+)\s*\}\}/g;
 
-export function renderTemplate(template: string, vars: Record<string, string | number | null | undefined>): string {
+export function renderTemplate(
+  template: string,
+  vars: Record<string, string | number | null | undefined>,
+): string {
   return template.replace(TOKEN, (_match, name: string) => {
     const v = vars[name];
     if (v === undefined || v === null) return '';

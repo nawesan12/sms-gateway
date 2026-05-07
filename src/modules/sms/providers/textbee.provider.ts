@@ -1,9 +1,15 @@
-import axios, { type AxiosInstance, AxiosError, isAxiosError } from 'axios';
+import type { AxiosError } from 'axios';
+import axios, { type AxiosInstance, isAxiosError } from 'axios';
 import axiosRetry from 'axios-retry';
 import type { AppEnv } from '@/config/env.js';
 import type { AppLogger } from '@/lib/logger-types.js';
 import type { SmsProvider } from './sms-provider.interface.js';
-import type { SendArgs, SendResult, TextBeeSendRequest, TextBeeSendResponse } from './textbee.types.js';
+import type {
+  SendArgs,
+  SendResult,
+  TextBeeSendRequest,
+  TextBeeSendResponse,
+} from './textbee.types.js';
 
 export class TextBeeProvider implements SmsProvider {
   private readonly http: AxiosInstance;
@@ -99,7 +105,7 @@ export class TextBeeProvider implements SmsProvider {
       const status = ax.response?.status;
       const data = ax.response?.data;
       const message = data?.message ?? data?.error ?? ax.message;
-      const code = status ? `HTTP_${status}` : ax.code ?? 'NETWORK_ERROR';
+      const code = status ? `HTTP_${status}` : (ax.code ?? 'NETWORK_ERROR');
       return { code, message: typeof message === 'string' ? message : 'request failed' };
     }
     return { code: 'UNKNOWN', message: err instanceof Error ? err.message : 'unknown error' };

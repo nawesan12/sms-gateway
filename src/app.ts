@@ -11,6 +11,7 @@ import errorHandler from './plugins/error-handler.js';
 import rateLimitPlugin from './plugins/rate-limit.js';
 import authJwt from './plugins/auth-jwt.js';
 import authAdmin from './plugins/auth-admin.js';
+import authOperator from './plugins/auth-operator.js';
 import metricsPlugin from './plugins/metrics.js';
 import swaggerPlugin from './plugins/swagger.js';
 import staticWebPlugin from './plugins/static-web.js';
@@ -21,6 +22,8 @@ import { registerMessagingRoutes } from './modules/messaging/messaging.routes.js
 import { registerContactsRoutes } from './modules/contacts/contacts.routes.js';
 import { registerContactListsRoutes } from './modules/contact-lists/contact-lists.routes.js';
 import { registerCampaignsRoutes } from './modules/campaigns/campaigns.routes.js';
+import { registerTokensRoutes } from './modules/tokens/tokens.routes.js';
+import { registerAuthRoutes } from './modules/auth/auth.routes.js';
 import { loadEnv } from './config/env.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -64,17 +67,20 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(rateLimitPlugin);
   await app.register(authJwt);
   await app.register(authAdmin);
+  await app.register(authOperator);
   await app.register(metricsPlugin);
   await app.register(swaggerPlugin);
 
   await app.register(async (instance) => {
     await registerHealthRoutes(instance);
+    await registerAuthRoutes(instance);
     await registerMessagingRoutes(instance);
     await registerContactsRoutes(instance);
     await registerContactListsRoutes(instance);
     await registerCampaignsRoutes(instance);
     await registerDevicesRoutes(instance);
     await registerAdminRoutes(instance);
+    await registerTokensRoutes(instance);
   });
 
   // Static web UI (al final para que el SPA fallback no tape rutas API)

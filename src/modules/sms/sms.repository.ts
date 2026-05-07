@@ -50,7 +50,12 @@ export class SmsRepository {
         ...(args.status ? { status: args.status } : {}),
         ...(args.deviceId ? { deviceId: args.deviceId } : {}),
         ...(args.from || args.to
-          ? { createdAt: { ...(args.from ? { gte: args.from } : {}), ...(args.to ? { lte: args.to } : {}) } }
+          ? {
+              createdAt: {
+                ...(args.from ? { gte: args.from } : {}),
+                ...(args.to ? { lte: args.to } : {}),
+              },
+            }
           : {}),
       },
       orderBy: { createdAt: 'desc' },
@@ -64,7 +69,12 @@ export class SmsRepository {
       where: {
         ...(args.status ? { status: args.status } : {}),
         ...(args.from || args.to
-          ? { createdAt: { ...(args.from ? { gte: args.from } : {}), ...(args.to ? { lte: args.to } : {}) } }
+          ? {
+              createdAt: {
+                ...(args.from ? { gte: args.from } : {}),
+                ...(args.to ? { lte: args.to } : {}),
+              },
+            }
           : {}),
       },
     });
