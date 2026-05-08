@@ -40,9 +40,11 @@ services:
     region: oregon
     autoDeploy: true
     healthCheckPath: /health
-    # Migraciones se corren acá porque preDeployCommand no existe en free.
-    # Si la migración falla, el build falla y no se promueve la versión rota.
-    buildCommand: npm ci && npx prisma generate && npx prisma migrate deploy && npm run build && npm ci --prefix web && npm run build --prefix web
+    # Schema sync con `prisma db push` (sin archivos de migration) — apto para
+    # demo/educativo. Si la sincronización falla, el build falla y no se promueve
+    # la versión rota. Para producción real, reemplazar por `prisma migrate deploy`
+    # con migraciones versionadas en prisma/migrations/.
+    buildCommand: npm ci && npx prisma generate && npx prisma db push --accept-data-loss --skip-generate && npm run build && npm ci --prefix web && npm run build --prefix web
     startCommand: node dist/index.js
     envVars:
       - key: NODE_VERSION
@@ -54,12 +56,18 @@ services:
       # PORT lo inyecta Render automáticamente — no lo seteamos acá.
       - key: HOST
         value: 0.0.0.0
+      # DATABASE_URL: pooler de Supabase (puerto 6543, ?pgbouncer=true&connection_limit=1)
+      # DIRECT_URL: conexión directa de Supabase (puerto 5432). Solo la usa
+      #   `prisma migrate deploy` en el build; el runtime usa el pooler.
       - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
         sync: false
       - key: REDIS_URL
         sync: false
-      - key: APP_BASE_URL
-        sync: false
+      # APP_BASE_URL es opcional: si no se setea, el código usa
+      # RENDER_EXTERNAL_URL (que Render expone automáticamente).
+      # Setearla a mano solo si tenés un dominio custom.
       # ⚠️ CLAVES HARDCODEADAS — solo para fines didácticos / demo.
       # En un despliegue real estas tres variables deben ser secretos
       # (sync: false) y NUNCA estar versionadas en git.

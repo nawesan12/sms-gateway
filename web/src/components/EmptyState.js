@@ -1,4 +1,0 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-export function EmptyState({ title, hint, action, }) {
-    return (_jsxs("div", { className: "surface crosshair flex flex-col items-center justify-center gap-3 px-6 py-20 text-center relative overflow-hidden", children: [_jsx("div", { className: "absolute inset-0 pointer-events-none bg-gradient-to-b from-canvas/0 via-canvas-elevated/40 to-canvas-elevated" }), _jsxs("div", { className: "relative", children: [_jsx("p", { className: "section-eyebrow mb-2", children: "\u2014 empty \u2014" }), _jsx("p", { className: "font-display text-3xl text-ink-primary leading-tight", children: title }), hint && _jsx("p", { className: "mt-2 max-w-md text-sm text-ink-secondary", children: hint }), action && _jsx("div", { className: "mt-6", children: action })] })] }));
-}

@@ -1,4 +1,5 @@
 import { buildApp } from './app.js';
+import { seedAdminIfMissing } from './bootstrap/seed-admin.js';
 import { startSmsSendWorker } from './queue/workers/sms-send.worker.js';
 import { startDeviceHealthWorker } from './queue/workers/device-health.worker.js';
 import { startCampaignSendWorker } from './queue/workers/campaign-send.worker.js';
@@ -6,6 +7,14 @@ import { startCampaignSendWorker } from './queue/workers/campaign-send.worker.js
 async function main(): Promise<void> {
   const app = await buildApp();
   const env = app.env;
+
+  // Auto-seed del admin operador (idempotente). En Render free no hay Shell,
+  // así que `npm run prisma:seed` no es viable; lo hacemos en cada boot.
+  await seedAdminIfMissing({
+    prisma: app.prisma,
+    phoneE164: env.BOOTSTRAP_ADMIN_PHONE,
+    logger: app.log.child({ scope: 'bootstrap' }),
+  });
 
   // En plan free de Render no hay Background Workers, así que los corremos
   // dentro del mismo proceso de la API. Si el web service se duerme por

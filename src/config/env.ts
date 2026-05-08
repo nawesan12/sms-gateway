@@ -81,8 +81,19 @@ const envSchema = z.object({
         .filter(Boolean),
     ),
 
-  APP_BASE_URL: z.string().url().default('http://localhost:3000'),
-});
+  // Render expone RENDER_EXTERNAL_URL automáticamente en runtime con la URL
+  // pública del service. Si APP_BASE_URL no está seteada, la usamos como
+  // fallback — un env var menos para pegar a mano en el dashboard.
+  RENDER_EXTERNAL_URL: z.string().url().optional(),
+  APP_BASE_URL: z.string().url().optional(),
+
+  BOOTSTRAP_ADMIN_PHONE: z.string().default('+5491100000001'),
+})
+  .transform((data) => ({
+    ...data,
+    APP_BASE_URL:
+      data.APP_BASE_URL ?? data.RENDER_EXTERNAL_URL ?? 'http://localhost:3000',
+  }));
 
 export type AppEnv = z.infer<typeof envSchema>;
 

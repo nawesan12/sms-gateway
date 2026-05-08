@@ -5,8 +5,8 @@ export default fp(
   async (app) => {
     const client = new Redis(app.env.REDIS_URL, {
       maxRetriesPerRequest: null,
-      enableReadyCheck: true,
-      lazyConnect: false,
+      enableReadyCheck: false,
+      lazyConnect: true,
     });
 
     client.on('error', (err) => {
