@@ -19,3 +19,6 @@ scripts/deploy/accounts.json
 # Web
 web/node_modules/
 web/dist/
+
+# Local CLI config (no commitear: contiene el bootstrap token)
+scripts/gateway.env

@@ -132,60 +132,99 @@ Alternativa: **UptimeRobot** (gratis hasta 50 monitors, check cada 5 min).
 
 ---
 
-## Paso 7 — Onboardear primer cliente
+## Paso 7 — Onboardear primer cliente con el CLI
 
-Desde tu compu local:
+El repo trae `scripts/gateway.sh`, un wrapper sobre los endpoints admin para que no tengas que pegar curls a mano.
+
+**Setup (una sola vez):**
+```bash
+cp scripts/gateway.env.example scripts/gateway.env
+# Editá scripts/gateway.env y completá API_URL con tu subdominio de Render.
+# El BOOTSTRAP_TOKEN ya viene del render.yaml hardcodeado.
+```
+
+> `scripts/gateway.env` está gitignoreado, no se commitea.
+
+**Crear un cliente con 1000 tokens precargados:**
+```bash
+./scripts/gateway.sh client create +5491132111111 1000
+```
+
+Salida:
+```json
+{
+  "phoneE164": "+5491132111111",
+  "userId": "uuid-del-cliente",
+  "balance": 1000,
+  "link": "https://sms-gateway-XXXX.onrender.com/login?token=AbCd..."
+}
+```
+
+Mandale el `link` al cliente. Cuando lo abre, queda logueado en el panel.
+
+**Crear varios clientes de una sola vez:**
+```bash
+./scripts/gateway.sh client create +5491132111111 1000
+./scripts/gateway.sh client create +5491132222222 500
+./scripts/gateway.sh client create +5491132333333 2000
+```
+
+---
+
+## Paso 8 — Operación día a día con el CLI
+
+```bash
+# Listado de todos los clientes con saldos
+./scripts/gateway.sh client list
+
+# Saldo de un cliente puntual
+./scripts/gateway.sh client balance <userId>
+
+# Recargar tokens (top-up)
+./scripts/gateway.sh client topup <userId> 500 "pago abril"
+
+# Historial de transacciones
+./scripts/gateway.sh client tx <userId>          # primera página
+./scripts/gateway.sh client tx <userId> 2 100    # página 2, 100 por página
+
+# Regenerar link (invalida el anterior, mantiene el saldo)
+./scripts/gateway.sh client regen +5491132111111
+
+# Health check rápido
+./scripts/gateway.sh health
+```
+
+> **Sin `jq`?** El script lo necesita para parsear las respuestas. Instalalo con `brew install jq` (macOS) o `apt install jq` (Linux).
+
+### Equivalentes en `curl` (por si querés enseñar el endpoint crudo)
+
+<details>
+<summary>Ver curls equivalentes</summary>
 
 ```bash
 export BOOTSTRAP="9ef85a6cf8ef505bbe56d08d0a57d6aae14da1d1cfb20342"
 export API="https://sms-gateway-XXXX.onrender.com"
 
-# Crear cliente con 1000 tokens precargados
+# Crear/regenerar cliente
 curl -X POST $API/v1/admin/auth/access-link \
   -H "x-bootstrap-token: $BOOTSTRAP" \
   -H "content-type: application/json" \
-  -d '{"phoneE164":"+5491132xxxxxx","initialTokens":1000,"role":"ADMIN"}'
+  -d '{"phoneE164":"+5491132111111","initialTokens":1000,"role":"ADMIN"}'
 
-# Respuesta:
-# {
-#   "data": {
-#     "link": "https://sms-gateway-XXXX.onrender.com/login?token=AbCd...",
-#     "userId": "uuid-del-cliente",
-#     "balance": 1000
-#   }
-# }
-```
-
-Mandale el `link` al cliente. Cuando lo abre, queda logueado en el panel.
-
----
-
-## Paso 8 — Operación día a día
-
-```bash
-# Listado de clientes con saldos
+# Listado
 curl -H "x-bootstrap-token: $BOOTSTRAP" $API/v1/admin/users
 
-# Saldo de un cliente puntual
-curl -H "x-bootstrap-token: $BOOTSTRAP" \
-  $API/v1/admin/users/$USER_ID/tokens/balance
-
-# Recargar tokens
+# Top-up
 curl -X POST $API/v1/admin/users/$USER_ID/tokens/top-up \
   -H "x-bootstrap-token: $BOOTSTRAP" \
   -H "content-type: application/json" \
   -d '{"amount":500,"reason":"pago abril"}'
 
-# Historial de movimientos
+# Historial
 curl -H "x-bootstrap-token: $BOOTSTRAP" \
   "$API/v1/admin/users/$USER_ID/tokens/transactions?page=1&pageSize=50"
-
-# Revocar acceso (regenera token, el viejo deja de funcionar)
-curl -X POST $API/v1/admin/auth/access-link \
-  -H "x-bootstrap-token: $BOOTSTRAP" \
-  -H "content-type: application/json" \
-  -d '{"phoneE164":"+5491132xxxxxx"}'
 ```
+</details>
 
 ---
 
