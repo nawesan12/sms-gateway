@@ -9,11 +9,9 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "dev:api": "node --env-file=.env --import tsx --watch src/index.ts",
-    "dev:worker": "node --env-file=.env --import tsx --watch src/worker.ts",
+    "dev": "node --env-file=.env --import tsx --watch src/index.ts",
     "build": "tsc -p tsconfig.build.json",
-    "start:api": "node dist/index.js",
-    "start:worker": "node dist/worker.js",
+    "start": "node dist/index.js",
     "lint": "eslint \"src/**/*.ts\" \"tests/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" \"tests/**/*.ts\" --fix",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",

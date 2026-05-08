@@ -88,6 +88,10 @@ const envSchema = z.object({
   APP_BASE_URL: z.string().url().optional(),
 
   BOOTSTRAP_ADMIN_PHONE: z.string().default('+5491100000001'),
+
+  // Swagger UI (/docs): por default abierto en dev, cerrado en producción.
+  // Forzar override con SWAGGER_UI_ENABLED=true (útil para demos públicas).
+  SWAGGER_UI_ENABLED: truthy.optional(),
 })
   .transform((data) => ({
     ...data,
