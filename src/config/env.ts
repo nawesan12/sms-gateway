@@ -103,6 +103,42 @@ export type AppEnv = z.infer<typeof envSchema>;
 
 let cached: AppEnv | null = null;
 
+// Pre-flight checks: detectan misconfigs comunes (URL directa de Supabase
+// en lugar del pooler, Redis sin TLS, etc.) y los avisan en logs claros.
+// No abortan el boot — solo emiten warnings para acelerar el debugging.
+function preflightWarnings(env: AppEnv): string[] {
+  const warnings: string[] = [];
+
+  // DATABASE_URL: pooler de Supabase usa puerto 6543 + pgbouncer=true.
+  // Si vemos puerto 5432 con un host de Supabase, casi seguro pegaron la directa.
+  if (env.NODE_ENV === 'production') {
+    const isSupabase = /\.supabase\.(co|com)/.test(env.DATABASE_URL);
+    if (isSupabase && /:5432\b/.test(env.DATABASE_URL)) {
+      warnings.push(
+        'DATABASE_URL parece ser la URL "Direct connection" de Supabase ' +
+          '(puerto 5432). En Render usar la "Connection pooling" (puerto 6543) ' +
+          '— la directa es IPv6-only y los queries van a fallar con ENETUNREACH.',
+      );
+    }
+    if (isSupabase && !/pgbouncer=true/.test(env.DATABASE_URL)) {
+      warnings.push(
+        'DATABASE_URL apunta a Supabase sin ?pgbouncer=true. `prisma db push` ' +
+          'y prepared statements pueden fallar contra el pooler en transaction mode.',
+      );
+    }
+
+    // REDIS_URL: Upstash exige TLS (rediss://). redis:// va a fallar handshake.
+    if (env.REDIS_URL.startsWith('redis://') && /upstash\.io/.test(env.REDIS_URL)) {
+      warnings.push(
+        'REDIS_URL apunta a Upstash con redis:// (sin TLS). Upstash requiere ' +
+          'TLS — usar la "TLS connection string" que empieza con rediss://.',
+      );
+    }
+  }
+
+  return warnings;
+}
+
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
   if (cached) return cached;
   const parsed = envSchema.safeParse(source);
@@ -113,6 +149,13 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
   cached = parsed.data;
+
+  const warnings = preflightWarnings(cached);
+  for (const w of warnings) {
+    // eslint-disable-next-line no-console
+    console.warn(`[env] ⚠️  ${w}`);
+  }
+
   return cached;
 }
 

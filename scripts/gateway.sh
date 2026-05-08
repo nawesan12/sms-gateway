@@ -17,7 +17,8 @@
 #                                        Suma tokens al saldo de un cliente
 #   client regen <phone>                 Regenera link (invalida el anterior)
 #   client tx <userId> [page] [pageSize] Historial de transacciones
-#   health                               Pega a /health
+#   health                               Pega a /health (rápido, no toca DB)
+#   doctor                               Diagnóstico completo (config + DB + Redis + devices)
 #   help                                 Muestra esta ayuda
 # =============================================================================
 
@@ -62,19 +63,48 @@ require_jq() {
   fi
 }
 
+# Validación E.164 local: + seguido de 8-15 dígitos. Atajo errores típicos
+# (sin +, espacios, paréntesis) sin tener que ir hasta el server.
+validate_e164() {
+  local phone="$1"
+  if [[ ! "$phone" =~ ^\+[1-9][0-9]{7,14}$ ]]; then
+    red "✗ Teléfono inválido: '$phone'"
+    red "  Formato esperado: E.164 (ej. +5491132111111)"
+    red "  - Empieza con + (no 00, no nada)"
+    red "  - 8 a 15 dígitos, sin espacios ni guiones"
+    exit 1
+  fi
+}
+
 api() {
   local method="$1"
   local path="$2"
   local body="${3:-}"
+  local out exit_code
   if [ -n "$body" ]; then
-    curl -sS -X "$method" "$API_URL$path" \
+    out=$(curl -sS --max-time 30 -X "$method" "$API_URL$path" \
       -H "x-bootstrap-token: $BOOTSTRAP_TOKEN" \
       -H "content-type: application/json" \
-      -d "$body"
+      -d "$body" 2>&1)
+    exit_code=$?
   else
-    curl -sS -X "$method" "$API_URL$path" \
-      -H "x-bootstrap-token: $BOOTSTRAP_TOKEN"
+    out=$(curl -sS --max-time 30 -X "$method" "$API_URL$path" \
+      -H "x-bootstrap-token: $BOOTSTRAP_TOKEN" 2>&1)
+    exit_code=$?
   fi
+  if [ $exit_code -ne 0 ]; then
+    red "✗ No se pudo contactar el service ($API_URL):"
+    red "  $out"
+    red ""
+    red "Cosas para revisar:"
+    red "  - ¿API_URL en scripts/gateway.env está bien escrita y termina sin slash?"
+    red "  - ¿El service está despierto? (free plan duerme tras 15 min — esperá ~30s y reintentá)"
+    red "  - ¿El deploy en Render terminó OK? Revisá los logs."
+    red ""
+    red "Tip: probá './scripts/gateway.sh doctor' para un diagnóstico completo."
+    exit 1
+  fi
+  echo "$out"
 }
 
 # --- Subcomandos ------------------------------------------------------------
@@ -86,6 +116,7 @@ cmd_client_create() {
     exit 1
   fi
   require_config; require_jq
+  validate_e164 "$phone"
 
   local body
   if [ "$tokens" -gt 0 ]; then
@@ -164,6 +195,7 @@ cmd_client_regen() {
     exit 1
   fi
   require_config; require_jq
+  validate_e164 "$phone"
   local body
   body=$(jq -nc --arg p "$phone" '{phoneE164:$p}')
   local res
@@ -195,6 +227,69 @@ cmd_health() {
   curl -sS "$API_URL/health" | (command -v jq >/dev/null && jq . || cat)
 }
 
+cmd_doctor() {
+  require_config
+
+  echo "→ Configuración"
+  echo "  API_URL=$API_URL"
+  echo "  BOOTSTRAP_TOKEN=${BOOTSTRAP_TOKEN:0:8}…(${#BOOTSTRAP_TOKEN} chars)"
+  echo
+
+  # 1. /health (público, no toca DB)
+  echo "→ /health (proceso vivo)"
+  local health
+  if ! health=$(curl -fsS --max-time 30 "$API_URL/health" 2>&1); then
+    red "  ✗ No respondió. Posibles causas:"
+    red "     - API_URL mal escrita"
+    red "     - El service está dormido (free plan tras 15 min) — primer hit puede tardar 30-60s"
+    red "     - El deploy falló — revisá los logs en Render"
+    exit 1
+  fi
+  green "  ✓ alive"
+  echo "  $(echo "$health" | jq -c .)"
+  echo
+
+  # 2. /health/ready (toca DB + Redis + devices)
+  echo "→ /health/ready (DB + Redis + devices)"
+  local ready
+  ready=$(curl -sS --max-time 30 "$API_URL/health/ready" || echo '{}')
+  local pg=$(echo "$ready" | jq -r '.checks.postgres // "?"')
+  local rd=$(echo "$ready" | jq -r '.checks.redis // "?"')
+  local dv=$(echo "$ready" | jq -r '.checks.devices // "?"')
+
+  if [ "$pg" = "ok" ]; then green "  ✓ postgres: ok"
+  else red "  ✗ postgres: $pg — revisá DATABASE_URL (¿pegaste el pooler en :6543?)"
+  fi
+
+  if [ "$rd" = "ok" ]; then green "  ✓ redis: ok"
+  else red "  ✗ redis: $rd — revisá REDIS_URL (¿empieza con rediss:// para Upstash?)"
+  fi
+
+  if [ "$dv" = "ok" ]; then green "  ✓ devices: hay al menos 1 device ACTIVO"
+  else dim   "  · devices: $dv — sin devices registrados todavía (no es fatal hasta que mandes SMS)"
+  fi
+  echo
+
+  # 3. Auth check
+  echo "→ Auth (BOOTSTRAP_TOKEN válido?)"
+  local auth_status
+  auth_status=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 30 \
+    -H "x-bootstrap-token: $BOOTSTRAP_TOKEN" "$API_URL/v1/admin/users" || echo "000")
+  case "$auth_status" in
+    200) green "  ✓ token válido (HTTP 200)" ;;
+    401|403) red "  ✗ token inválido (HTTP $auth_status) — el BOOTSTRAP_TOKEN no coincide con el del service" ;;
+    *) red "  ✗ respuesta inesperada (HTTP $auth_status)" ;;
+  esac
+  echo
+
+  if [ "$pg" = "ok" ] && [ "$rd" = "ok" ] && [ "$auth_status" = "200" ]; then
+    green "Todo OK. Listo para crear clientes."
+  else
+    red "Hay items en rojo. Mirá los logs del service en Render dashboard."
+    exit 1
+  fi
+}
+
 cmd_help() {
   sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
 }
@@ -218,6 +313,7 @@ main() {
       esac
       ;;
     health) cmd_health ;;
+    doctor) cmd_doctor ;;
     help|-h|--help) cmd_help ;;
     *) red "Subcomando desconocido: $sub"; cmd_help; exit 1 ;;
   esac
