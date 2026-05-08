@@ -57,11 +57,8 @@ services:
       - key: HOST
         value: 0.0.0.0
       # DATABASE_URL: pooler de Supabase (puerto 6543, ?pgbouncer=true&connection_limit=1)
-      # DIRECT_URL: conexión directa de Supabase (puerto 5432). Solo la usa
-      #   `prisma migrate deploy` en el build; el runtime usa el pooler.
+      # `prisma db push` también funciona contra el pooler con ese flag.
       - key: DATABASE_URL
-        sync: false
-      - key: DIRECT_URL
         sync: false
       - key: REDIS_URL
         sync: false

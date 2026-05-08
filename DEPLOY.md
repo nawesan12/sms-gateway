@@ -38,19 +38,14 @@ git push origin main
 1. Ir a https://supabase.com → **New project**.
 2. Region cercana al usuario (p. ej. `South America (São Paulo)`), password fuerte.
 3. Esperar ~2 min hasta que termine de provisionar.
-4. **Project Settings → Database → Connection string** y copiar **DOS** URLs:
-   - **Connection pooling** (Transaction mode, puerto **6543**) → será `DATABASE_URL`. Render usa esta porque es IPv4 y no agota conexiones.
-     ```
-     postgresql://postgres.<ref>:<pwd>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&sslmode=require
-     ```
-   - **Direct connection** (puerto **5432**) → será `DIRECT_URL`. Solo la usa `prisma db push` durante el build.
-     ```
-     postgresql://postgres:<pwd>@db.<ref>.supabase.co:5432/postgres?sslmode=require
-     ```
+4. **Project Settings → Database → Connection string → Connection pooling** (Transaction mode, puerto **6543**). Va a verse así:
+   ```
+   postgresql://postgres.<ref>:<pwd>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1&sslmode=require
+   ```
 
-> ⚠️ **Crítico**: la URL directa de Supabase es IPv6-only y Render no resuelve IPv6 desde sus services. Por eso el runtime usa el pooler. Si ponés la directa como `DATABASE_URL`, los queries fallan con `ENETUNREACH`.
+> ⚠️ **Crítico**: usar el **pooler** (puerto 6543), NO la URL "Direct connection". La directa es IPv6-only y Render no resuelve IPv6 desde sus services → los queries fallan con `ENETUNREACH`. El pooler funciona también para `prisma db push` con el flag `?pgbouncer=true`.
 
-Guardá las dos URLs.
+Guardá la URL — esa es tu `DATABASE_URL`.
 
 ---
 
@@ -82,14 +77,13 @@ Esa es la `REDIS_URL`. Guardala.
 
 ---
 
-## Paso 4 — Setear las 3 env vars en Render
+## Paso 4 — Setear las 2 env vars en Render
 
 En el dashboard del service → **Environment → Edit env vars** y completar:
 
 | Key | Valor |
 |---|---|
 | `DATABASE_URL` | URL del **pooler** de Supabase (puerto 6543, del paso 1) |
-| `DIRECT_URL` | URL **directa** de Supabase (puerto 5432, del paso 1) |
 | `REDIS_URL` | URL de Upstash (`rediss://...`, del paso 2) |
 
 > `APP_BASE_URL` no hace falta setearla: el código toma `RENDER_EXTERNAL_URL` automáticamente (Render lo inyecta con el subdominio público). Solo seteala a mano si usás un dominio custom.
@@ -233,10 +227,10 @@ curl -X POST $API/v1/admin/devices \
 → Falta alguna env del paso 4. El log dice cuál.
 
 **El log dice `Can't reach database server` o `P1001`**
-→ Pegaste la URL directa de Supabase como `DATABASE_URL`. Tiene que ser el pooler (puerto 6543). La directa va en `DIRECT_URL`.
+→ Pegaste la URL directa de Supabase como `DATABASE_URL`. Tiene que ser el pooler (puerto 6543) con `?pgbouncer=true&connection_limit=1&sslmode=require`. La directa de Supabase es IPv6-only y Render no la resuelve.
 
-**`prisma db push` falla con `connection refused` durante el build**
-→ La `DIRECT_URL` está mal o el password tiene caracteres especiales sin URL-encode. Probar la URL directa con `psql` localmente para confirmar.
+**`prisma db push` falla con `prepared statement ...`**
+→ Falta `?pgbouncer=true` en la `DATABASE_URL`. PgBouncer en transaction mode no soporta prepared statements; ese flag le dice a Prisma que no las use.
 
 **El log dice `MaxRetriesPerRequestError` o los workers no procesan jobs**
 → La `REDIS_URL` está mal o el TLS no se aceptó. Tiene que empezar con `rediss://` (dos `s`).
