@@ -94,8 +94,9 @@ Esa es la `REDIS_URL`. Guardala.
      ```
    - **Start Command**:
      ```
-     npx prisma db push --accept-data-loss --skip-generate && node dist/index.js
+     node dist/index.js
      ```
+     > El sync del schema (`prisma db push`) corre dentro del proceso Node al boot — no hace falta meterlo acá.
    - **Plan**: `Free`
    - **Health Check Path**: `/health`
    - **Auto-Deploy**: `Yes`
