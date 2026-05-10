@@ -19,9 +19,18 @@ export class DeviceRouter {
   }
 
   async listEligible(): Promise<Device[]> {
+    // Incluimos ACTIVE y OFFLINE: FCM despierta al celu aunque esté en Doze Mode,
+    // así que un heartbeat atrasado (que el worker marca como OFFLINE) no es
+    // motivo para skipear el device. Solo INACTIVE (deshabilitado manualmente)
+    // queda fuera. Sin fcmToken tampoco — la app no se registró todavía.
     const devices = await this.prisma.device.findMany({
-      where: { status: DeviceStatus.ACTIVE },
-      orderBy: [{ priority: 'asc' }, { lastHeartbeat: 'desc' }],
+      where: {
+        status: { in: [DeviceStatus.ACTIVE, DeviceStatus.OFFLINE] },
+        fcmToken: { not: null },
+      },
+      // ACTIVE antes que OFFLINE (alfabético), después prioridad, después
+      // el de heartbeat más reciente.
+      orderBy: [{ status: 'asc' }, { priority: 'asc' }, { lastHeartbeat: 'desc' }],
     });
     return devices.filter((d) => this.breaker.isAvailable(d));
   }

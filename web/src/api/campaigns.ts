@@ -28,7 +28,13 @@ export const campaignsApi = {
     );
   },
   launch: (id: string) =>
-    apiFetch<{ id: string; queued: number }>(`/v1/campaigns/${id}/launch`, { method: 'POST' }),
+    apiFetch<{ id: string; queued: number }>(`/v1/campaigns/${id}/launch`, {
+      method: 'POST',
+      body: '{}',
+    }),
   cancel: (id: string) =>
-    apiFetch<{ canceled: boolean }>(`/v1/campaigns/${id}/cancel`, { method: 'POST' }),
+    apiFetch<{ canceled: boolean }>(`/v1/campaigns/${id}/cancel`, {
+      method: 'POST',
+      body: '{}',
+    }),
 };
