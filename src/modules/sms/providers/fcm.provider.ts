@@ -38,15 +38,17 @@ export class FcmProvider implements SmsProvider {
     }
 
     try {
+      // La app Android espera el payload JSON-stringified dentro de data.smsData
+      // (ver FCMService.java línea 52). Si mandamos campos sueltos los ignora.
+      const smsData = JSON.stringify({
+        recipients: args.recipients,
+        message: args.message,
+        smsId: args.smsMessageId,
+        smsBatchId: args.smsMessageId,
+      });
       const messageId = await this.fcm.send({
         token,
-        // data-only: no notification block (no se muestra al usuario)
-        data: {
-          type: 'send_sms',
-          smsId: args.smsMessageId,
-          recipients: JSON.stringify(args.recipients),
-          message: args.message,
-        },
+        data: { smsData },
         android: {
           priority: 'high',
           // sin TTL: si el celular está apagado mucho rato, queremos que el
