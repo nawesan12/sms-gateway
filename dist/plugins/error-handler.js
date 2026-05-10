@@ -1,5 +1,5 @@
 import fp from 'fastify-plugin';
-import { ERROR_CODES } from '@/config/constants.js';
+import { ERROR_CODES } from '../config/constants.js';
 export class AppError extends Error {
     code;
     statusCode;

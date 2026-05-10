@@ -1,6 +1,6 @@
 import { CampaignsService } from './campaigns.service.js';
 import { CampaignsController } from './campaigns.controller.js';
-import { buildCampaignQueue } from '@/queue/queues.js';
+import { buildCampaignQueue } from '../../queue/queues.js';
 import { CampaignDeliveriesQuery, CampaignIdParam, CreateCampaignBody, ListCampaignsQuery, } from './campaigns.schemas.js';
 export async function registerCampaignsRoutes(app) {
     const { queue: campaignQueue, client: campaignQueueClient } = buildCampaignQueue(app.env);

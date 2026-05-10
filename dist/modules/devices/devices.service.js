@@ -1,7 +1,7 @@
 import { DeviceStatus } from '@prisma/client';
-import { AppError } from '@/plugins/error-handler.js';
-import { ERROR_CODES, AUDIT_EVENTS } from '@/config/constants.js';
-import { AuditService } from '@/modules/audit/audit.service.js';
+import { AppError } from '../../plugins/error-handler.js';
+import { ERROR_CODES, AUDIT_EVENTS } from '../../config/constants.js';
+import { AuditService } from '../../modules/audit/audit.service.js';
 export class DevicesService {
     prisma;
     crypto;

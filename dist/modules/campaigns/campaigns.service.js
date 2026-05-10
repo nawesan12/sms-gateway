@@ -1,7 +1,7 @@
 import { CampaignStatus, DeliveryStatus } from '@prisma/client';
-import { AppError } from '@/plugins/error-handler.js';
-import { ERROR_CODES } from '@/config/constants.js';
-import { listTemplateVariables } from '@/lib/template.js';
+import { AppError } from '../../plugins/error-handler.js';
+import { ERROR_CODES } from '../../config/constants.js';
+import { listTemplateVariables } from '../../lib/template.js';
 export class CampaignsService {
     prisma;
     env;

@@ -1,6 +1,6 @@
 import { UserRepository } from './user.repository.js';
-import { AppError } from '@/plugins/error-handler.js';
-import { ERROR_CODES } from '@/config/constants.js';
+import { AppError } from '../../plugins/error-handler.js';
+import { ERROR_CODES } from '../../config/constants.js';
 export class UserService {
     repo;
     constructor(prisma) {

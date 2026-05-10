@@ -1,6 +1,6 @@
 import fp from 'fastify-plugin';
 import { AppError } from './error-handler.js';
-import { ERROR_CODES } from '@/config/constants.js';
+import { ERROR_CODES } from '../config/constants.js';
 export default fp(async (app) => {
     // Operator = quien tiene el ADMIN_BOOTSTRAP_TOKEN (vos, el que opera la plataforma).
     // No acepta access tokens estáticos de clientes.

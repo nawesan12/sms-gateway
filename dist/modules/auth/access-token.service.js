@@ -1,11 +1,11 @@
 import crypto from 'node:crypto';
 import { UserRole } from '@prisma/client';
-import { validateAndNormalizePhone } from '@/lib/phone.js';
-import { AppError } from '@/plugins/error-handler.js';
-import { AUDIT_EVENTS, ERROR_CODES } from '@/config/constants.js';
-import { AuditService } from '@/modules/audit/audit.service.js';
-import { UserService } from '@/modules/users/user.service.js';
-import { TokensService } from '@/modules/tokens/tokens.service.js';
+import { validateAndNormalizePhone } from '../../lib/phone.js';
+import { AppError } from '../../plugins/error-handler.js';
+import { AUDIT_EVENTS, ERROR_CODES } from '../../config/constants.js';
+import { AuditService } from '../../modules/audit/audit.service.js';
+import { UserService } from '../../modules/users/user.service.js';
+import { TokensService } from '../../modules/tokens/tokens.service.js';
 export function hashAccessToken(plain) {
     return crypto.createHash('sha256').update(plain).digest('hex');
 }

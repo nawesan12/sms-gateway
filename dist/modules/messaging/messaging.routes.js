@@ -1,9 +1,9 @@
-import { TextBeeProvider } from '@/modules/sms/providers/textbee.provider.js';
-import { SmsService } from '@/modules/sms/sms.service.js';
-import { DeviceRouter } from '@/modules/sms/device-router.js';
-import { DeviceCrypto } from '@/modules/devices/crypto.js';
-import { buildSmsQueue } from '@/queue/queues.js';
-import { TokensService } from '@/modules/tokens/tokens.service.js';
+import { TextBeeProvider } from '../../modules/sms/providers/textbee.provider.js';
+import { SmsService } from '../../modules/sms/sms.service.js';
+import { DeviceRouter } from '../../modules/sms/device-router.js';
+import { DeviceCrypto } from '../../modules/devices/crypto.js';
+import { buildSmsQueue } from '../../queue/queues.js';
+import { TokensService } from '../../modules/tokens/tokens.service.js';
 import { MessagingService } from './messaging.service.js';
 import { MessagingController } from './messaging.controller.js';
 import { SendSmsBody, SmsIdParam, } from './messaging.schemas.js';

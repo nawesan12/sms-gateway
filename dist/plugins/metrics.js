@@ -1,7 +1,7 @@
 import fp from 'fastify-plugin';
 import { Counter, Histogram, Registry, collectDefaultMetrics } from 'prom-client';
 import { AppError } from './error-handler.js';
-import { ERROR_CODES } from '@/config/constants.js';
+import { ERROR_CODES } from '../config/constants.js';
 export function buildMetrics() {
     const registry = new Registry();
     collectDefaultMetrics({ register: registry, prefix: 'sms_gateway_' });

@@ -1,6 +1,6 @@
 import { DeviceStatus } from '@prisma/client';
-import { AppError } from '@/plugins/error-handler.js';
-import { ERROR_CODES } from '@/config/constants.js';
+import { AppError } from '../../plugins/error-handler.js';
+import { ERROR_CODES } from '../../config/constants.js';
 import { DeviceCircuitBreaker } from './circuit-breaker.js';
 export class DeviceRouter {
     prisma;

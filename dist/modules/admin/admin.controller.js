@@ -1,4 +1,4 @@
-import { maskPhone } from '@/lib/mask.js';
+import { maskPhone } from '../../lib/mask.js';
 export class AdminController {
     prisma;
     constructor(prisma) {

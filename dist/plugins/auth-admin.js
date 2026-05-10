@@ -1,8 +1,8 @@
 import fp from 'fastify-plugin';
 import { AppError } from './error-handler.js';
-import { AUDIT_EVENTS, ERROR_CODES } from '@/config/constants.js';
-import { hashAccessToken } from '@/modules/auth/access-token.service.js';
-import { AuditService } from '@/modules/audit/audit.service.js';
+import { AUDIT_EVENTS, ERROR_CODES } from '../config/constants.js';
+import { hashAccessToken } from '../modules/auth/access-token.service.js';
+import { AuditService } from '../modules/audit/audit.service.js';
 const JWT_REGEX = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 export default fp(async (app) => {
     app.decorate('requireAdmin', async (req) => {

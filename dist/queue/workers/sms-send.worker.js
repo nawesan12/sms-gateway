@@ -1,14 +1,14 @@
 import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { PrismaClient } from '@prisma/client';
-import { QUEUE_NAMES, AUDIT_EVENTS } from '@/config/constants.js';
-import { TextBeeProvider } from '@/modules/sms/providers/textbee.provider.js';
-import { SmsService } from '@/modules/sms/sms.service.js';
-import { DeviceRouter } from '@/modules/sms/device-router.js';
-import { DeviceCrypto } from '@/modules/devices/crypto.js';
-import { AuditService } from '@/modules/audit/audit.service.js';
-import { TokensService } from '@/modules/tokens/tokens.service.js';
-import { metrics } from '@/plugins/metrics.js';
+import { QUEUE_NAMES, AUDIT_EVENTS } from '../../config/constants.js';
+import { TextBeeProvider } from '../../modules/sms/providers/textbee.provider.js';
+import { SmsService } from '../../modules/sms/sms.service.js';
+import { DeviceRouter } from '../../modules/sms/device-router.js';
+import { DeviceCrypto } from '../../modules/devices/crypto.js';
+import { AuditService } from '../../modules/audit/audit.service.js';
+import { TokensService } from '../../modules/tokens/tokens.service.js';
+import { metrics } from '../../plugins/metrics.js';
 import { buildDlqQueue } from '../queues.js';
 export function startSmsSendWorker(env, logger) {
     const prisma = new PrismaClient();

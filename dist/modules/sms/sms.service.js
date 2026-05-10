@@ -1,5 +1,5 @@
 import { SmsStatus } from '@prisma/client';
-import { metrics } from '@/plugins/metrics.js';
+import { metrics } from '../../plugins/metrics.js';
 import { SmsRepository } from './sms.repository.js';
 export class SmsService {
     prisma;

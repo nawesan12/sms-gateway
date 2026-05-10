@@ -1,6 +1,6 @@
 import argon2 from 'argon2';
-import { generateNumericCode } from '@/lib/otp-code.js';
-import { addSeconds, isExpired } from '@/lib/time.js';
+import { generateNumericCode } from '../../lib/otp-code.js';
+import { addSeconds, isExpired } from '../../lib/time.js';
 import { OtpRepository } from './otp.repository.js';
 const ARGON_OPTS = {
     type: argon2.argon2id,

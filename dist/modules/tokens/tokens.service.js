@@ -1,6 +1,6 @@
 import { TokenTransactionStatus, TokenTransactionType, } from '@prisma/client';
-import { AuditService } from '@/modules/audit/audit.service.js';
-import { AUDIT_EVENTS } from '@/config/constants.js';
+import { AuditService } from '../../modules/audit/audit.service.js';
+import { AUDIT_EVENTS } from '../../config/constants.js';
 import { TokensRepository } from './tokens.repository.js';
 export class TokensService {
     prisma;

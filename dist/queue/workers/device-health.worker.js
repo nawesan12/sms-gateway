@@ -1,10 +1,10 @@
 import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { PrismaClient } from '@prisma/client';
-import { QUEUE_NAMES } from '@/config/constants.js';
-import { TextBeeProvider } from '@/modules/sms/providers/textbee.provider.js';
-import { DevicesService } from '@/modules/devices/devices.service.js';
-import { DeviceCrypto } from '@/modules/devices/crypto.js';
+import { QUEUE_NAMES } from '../../config/constants.js';
+import { TextBeeProvider } from '../../modules/sms/providers/textbee.provider.js';
+import { DevicesService } from '../../modules/devices/devices.service.js';
+import { DeviceCrypto } from '../../modules/devices/crypto.js';
 import { buildDeviceHealthQueue } from '../queues.js';
 export async function startDeviceHealthWorker(env, logger) {
     const prisma = new PrismaClient();

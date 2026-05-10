@@ -1,14 +1,14 @@
 import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { CampaignStatus, DeliveryStatus, PrismaClient } from '@prisma/client';
-import { AUDIT_EVENTS, ERROR_CODES, QUEUE_NAMES } from '@/config/constants.js';
-import { TextBeeProvider } from '@/modules/sms/providers/textbee.provider.js';
-import { SmsService } from '@/modules/sms/sms.service.js';
-import { DeviceRouter } from '@/modules/sms/device-router.js';
-import { DeviceCrypto } from '@/modules/devices/crypto.js';
-import { TokensService } from '@/modules/tokens/tokens.service.js';
-import { AuditService } from '@/modules/audit/audit.service.js';
-import { renderTemplate } from '@/lib/template.js';
+import { AUDIT_EVENTS, ERROR_CODES, QUEUE_NAMES } from '../../config/constants.js';
+import { TextBeeProvider } from '../../modules/sms/providers/textbee.provider.js';
+import { SmsService } from '../../modules/sms/sms.service.js';
+import { DeviceRouter } from '../../modules/sms/device-router.js';
+import { DeviceCrypto } from '../../modules/devices/crypto.js';
+import { TokensService } from '../../modules/tokens/tokens.service.js';
+import { AuditService } from '../../modules/audit/audit.service.js';
+import { renderTemplate } from '../../lib/template.js';
 export function startCampaignSendWorker(env, logger) {
     const prisma = new PrismaClient();
     const provider = new TextBeeProvider(env, logger);

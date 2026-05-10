@@ -1,6 +1,6 @@
-import { validateAndNormalizePhone } from '@/lib/phone.js';
-import { AppError } from '@/plugins/error-handler.js';
-import { ERROR_CODES } from '@/config/constants.js';
+import { validateAndNormalizePhone } from '../../lib/phone.js';
+import { AppError } from '../../plugins/error-handler.js';
+import { ERROR_CODES } from '../../config/constants.js';
 export class MessagingService {
     prisma;
     env;

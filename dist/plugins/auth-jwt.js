@@ -1,7 +1,7 @@
 import fp from 'fastify-plugin';
 import jwt from '@fastify/jwt';
 import { AppError } from './error-handler.js';
-import { ERROR_CODES } from '@/config/constants.js';
+import { ERROR_CODES } from '../config/constants.js';
 export default fp(async (app) => {
     const env = app.env;
     const privateKey = Buffer.from(env.JWT_PRIVATE_KEY_B64, 'base64').toString('utf8');

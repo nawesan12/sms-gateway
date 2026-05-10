@@ -1,5 +1,5 @@
-import { AppError } from '@/plugins/error-handler.js';
-import { ERROR_CODES } from '@/config/constants.js';
+import { AppError } from '../../plugins/error-handler.js';
+import { ERROR_CODES } from '../../config/constants.js';
 export const invalidPhone = (msg = 'Invalid phone number') => new AppError(ERROR_CODES.INVALID_PHONE, msg, 400);
 export const rateLimitedIp = (resetSec) => new AppError(ERROR_CODES.RATE_LIMITED_IP, 'Too many requests from this IP', 429, { resetSec });
 export const rateLimitedPhone = (resetSec) => new AppError(ERROR_CODES.RATE_LIMITED_PHONE, 'Daily OTP limit reached for this phone', 429, {

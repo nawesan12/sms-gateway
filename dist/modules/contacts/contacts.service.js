@@ -1,7 +1,7 @@
-import { validateAndNormalizePhone } from '@/lib/phone.js';
-import { parseCsv } from '@/lib/csv-parser.js';
-import { AppError } from '@/plugins/error-handler.js';
-import { ERROR_CODES } from '@/config/constants.js';
+import { validateAndNormalizePhone } from '../../lib/phone.js';
+import { parseCsv } from '../../lib/csv-parser.js';
+import { AppError } from '../../plugins/error-handler.js';
+import { ERROR_CODES } from '../../config/constants.js';
 import { ContactsRepository } from './contacts.repository.js';
 export class ContactsService {
     env;

@@ -1,9 +1,9 @@
 import IORedis from 'ioredis';
-import { TextBeeProvider } from '@/modules/sms/providers/textbee.provider.js';
-import { SmsService } from '@/modules/sms/sms.service.js';
-import { DeviceRouter } from '@/modules/sms/device-router.js';
-import { DeviceCrypto } from '@/modules/devices/crypto.js';
-import { buildSmsQueue } from '@/queue/queues.js';
+import { TextBeeProvider } from '../../modules/sms/providers/textbee.provider.js';
+import { SmsService } from '../../modules/sms/sms.service.js';
+import { DeviceRouter } from '../../modules/sms/device-router.js';
+import { DeviceCrypto } from '../../modules/devices/crypto.js';
+import { buildSmsQueue } from '../../queue/queues.js';
 import { AuthService } from './auth.service.js';
 import { AccessTokenService } from './access-token.service.js';
 import { AuthController } from './auth.controller.js';

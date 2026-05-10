@@ -1,6 +1,6 @@
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
-import { QUEUE_NAMES } from '@/config/constants.js';
+import { QUEUE_NAMES } from '../config/constants.js';
 export function buildBullConnection(env) {
     return new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
 }

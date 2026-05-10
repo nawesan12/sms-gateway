@@ -1,12 +1,12 @@
-import { OtpService } from '@/modules/otp/otp.service.js';
-import { RateLimitService } from '@/modules/ratelimit/rate-limit.service.js';
-import { AbuseService } from '@/modules/abuse/abuse.service.js';
-import { AuditService } from '@/modules/audit/audit.service.js';
-import { UserService } from '@/modules/users/user.service.js';
-import { validateAndNormalizePhone } from '@/lib/phone.js';
-import { maskPhone } from '@/lib/mask.js';
-import { metrics } from '@/plugins/metrics.js';
-import { AUDIT_EVENTS } from '@/config/constants.js';
+import { OtpService } from '../../modules/otp/otp.service.js';
+import { RateLimitService } from '../../modules/ratelimit/rate-limit.service.js';
+import { AbuseService } from '../../modules/abuse/abuse.service.js';
+import { AuditService } from '../../modules/audit/audit.service.js';
+import { UserService } from '../../modules/users/user.service.js';
+import { validateAndNormalizePhone } from '../../lib/phone.js';
+import { maskPhone } from '../../lib/mask.js';
+import { metrics } from '../../plugins/metrics.js';
+import { AUDIT_EVENTS } from '../../config/constants.js';
 import { blacklisted, cooldownActive, invalidPhone, otpExpired, otpInvalid, otpMaxAttempts, otpUsed, rateLimitedIp, rateLimitedPhone, } from './auth.errors.js';
 export class AuthService {
     deps;
