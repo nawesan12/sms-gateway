@@ -7,11 +7,10 @@ import type { FastifyBaseLogger } from 'fastify';
 // para que sea independiente de cómo la persona configure el dashboard.
 export async function syncDatabaseSchema(logger: FastifyBaseLogger): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(
-      'npx',
-      ['prisma', 'db', 'push', '--accept-data-loss', '--skip-generate'],
-      { stdio: ['ignore', 'pipe', 'pipe'], env: process.env },
-    );
+    const child = spawn('npx', ['prisma', 'db', 'push', '--accept-data-loss', '--skip-generate'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: process.env,
+    });
 
     let stdout = '';
     let stderr = '';

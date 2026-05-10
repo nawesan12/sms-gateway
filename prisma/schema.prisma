@@ -104,8 +104,20 @@ enum SmsStatus {
 model Device {
   id                String       @id @default(uuid())
   name              String
+  // textbeeDeviceId queda por compat: ahora vale lo mismo que `id`. Se llena
+  // en el create con el mismo UUID y se mantiene UNIQUE para no romper
+  // queries existentes.
   textbeeDeviceId   String       @unique
-  apiKeyEncrypted   String
+  // Hash HMAC-SHA256 de la apiKey en plaintext (lookup O(1) cuando la app
+  // Android se autentica con header x-api-key). La apiKey en plaintext solo
+  // existe en la response del create — nunca se persiste.
+  apiKeyHash        String?      @unique
+  // Legacy: campo viejo que cifraba la apiKey emitida por TextBee. Ya no
+  // aplica con FCM directo. Queda nullable para no romper migración auto.
+  apiKeyEncrypted   String?
+  // Token FCM del celular. Lo registra/refresca la app Android via
+  // POST /v1/gateway/devices/:id/register.
+  fcmToken          String?
   priority          Int          @default(100)
   status            DeviceStatus @default(ACTIVE)
   batteryLevel      Int?

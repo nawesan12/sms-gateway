@@ -6,6 +6,7 @@ import { buildLoggerOptions } from './plugins/logger.js';
 import envPlugin from './plugins/env-plugin.js';
 import prismaPlugin from './plugins/prisma.js';
 import redisPlugin from './plugins/redis.js';
+import firebasePlugin from './plugins/firebase.js';
 import correlationIdPlugin from './plugins/correlation-id.js';
 import errorHandler from './plugins/error-handler.js';
 import rateLimitPlugin from './plugins/rate-limit.js';
@@ -24,7 +25,7 @@ import { registerContactListsRoutes } from './modules/contact-lists/contact-list
 import { registerCampaignsRoutes } from './modules/campaigns/campaigns.routes.js';
 import { registerTokensRoutes } from './modules/tokens/tokens.routes.js';
 import { registerAuthRoutes } from './modules/auth/auth.routes.js';
-import { registerWebhooksRoutes } from './modules/webhooks/webhooks.routes.js';
+import { registerGatewayRoutes } from './modules/gateway/gateway.routes.js';
 import { loadEnv } from './config/env.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -65,6 +66,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(errorHandler);
   await app.register(prismaPlugin);
   await app.register(redisPlugin);
+  await app.register(firebasePlugin);
   await app.register(rateLimitPlugin);
   await app.register(authJwt);
   await app.register(authAdmin);
@@ -82,21 +84,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await registerDevicesRoutes(instance);
     await registerAdminRoutes(instance);
     await registerTokensRoutes(instance);
-  });
-
-  // Webhooks van en una instancia aislada con su propio content-type parser
-  // que mantiene el body como Buffer crudo (necesario para verificar el HMAC
-  // sobre los bytes exactos que firmó el upstream).
-  await app.register(async (instance) => {
-    instance.removeContentTypeParser('application/json');
-    instance.addContentTypeParser(
-      'application/json',
-      { parseAs: 'buffer' },
-      (_req, body, done) => {
-        done(null, body);
-      },
-    );
-    await registerWebhooksRoutes(instance);
+    await registerGatewayRoutes(instance);
   });
 
   // Static web UI (al final para que el SPA fallback no tape rutas API)

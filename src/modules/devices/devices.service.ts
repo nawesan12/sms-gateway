@@ -1,15 +1,21 @@
+import * as crypto from 'node:crypto';
 import { DeviceStatus, type Device, type PrismaClient } from '@prisma/client';
 import type { AppLogger } from '@/lib/logger-types.js';
-import type { DeviceCrypto } from './crypto.js';
 import { AppError } from '@/plugins/error-handler.js';
 import { ERROR_CODES, AUDIT_EVENTS } from '@/config/constants.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
+import { generateApiKey, hashApiKey } from '@/lib/api-key.js';
 
 export interface CreateDeviceInput {
   name: string;
-  textbeeDeviceId: string;
-  apiKey: string;
   priority?: number;
+}
+
+export interface CreateDeviceResult {
+  device: PublicDevice;
+  // Plaintext apiKey — visible una sola vez. Hay que pegarla en la app
+  // Android antes de salir de esta response.
+  apiKey: string;
 }
 
 export interface UpdateDeviceInput {
@@ -30,6 +36,7 @@ export interface PublicDevice {
   failureCount: number;
   circuitState: string;
   minDelayBetweenMs: number;
+  hasFcmToken: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,7 +46,7 @@ export class DevicesService {
 
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly crypto: DeviceCrypto,
+    private readonly masterKeyB64: string,
     logger: AppLogger,
   ) {
     this.audit = new AuditService(prisma, logger);
@@ -57,6 +64,7 @@ export class DevicesService {
       failureCount: device.failureCount,
       circuitState: device.circuitState,
       minDelayBetweenMs: device.minDelayBetweenMs,
+      hasFcmToken: device.fcmToken !== null,
       createdAt: device.createdAt,
       updatedAt: device.updatedAt,
     };
@@ -79,22 +87,26 @@ export class DevicesService {
     input: CreateDeviceInput,
     actorId: string,
     correlationId: string,
-  ): Promise<PublicDevice> {
-    const exists = await this.prisma.device.findUnique({
-      where: { textbeeDeviceId: input.textbeeDeviceId },
-    });
-    if (exists) {
-      throw new AppError(ERROR_CODES.VALIDATION, 'textbeeDeviceId already registered', 409);
-    }
-    const apiKeyEncrypted = this.crypto.encrypt(input.apiKey);
+  ): Promise<CreateDeviceResult> {
+    const apiKey = generateApiKey();
+    const apiKeyHash = hashApiKey(this.masterKeyB64, apiKey);
+
     const device = await this.prisma.device.create({
       data: {
         name: input.name,
-        textbeeDeviceId: input.textbeeDeviceId,
-        apiKeyEncrypted,
+        // textbeeDeviceId queda igual a id por compat con código que filtra
+        // por ese campo. Como id es UUID generado por Prisma default, lo
+        // copiamos en un update inmediato.
+        textbeeDeviceId: crypto.randomUUID(),
+        apiKeyHash,
         priority: input.priority ?? 100,
       },
     });
+    await this.prisma.device.update({
+      where: { id: device.id },
+      data: { textbeeDeviceId: device.id },
+    });
+
     await this.audit.record({
       eventType: AUDIT_EVENTS.DEVICE_CREATED,
       actorType: 'admin',
@@ -104,7 +116,17 @@ export class DevicesService {
       metadata: { name: device.name, priority: device.priority },
       correlationId,
     });
-    return this.toPublic(device);
+    return {
+      device: this.toPublic({ ...device, textbeeDeviceId: device.id }),
+      apiKey,
+    };
+  }
+
+  // Lookup de device por la apiKey en plaintext que la app Android manda
+  // en el header x-api-key. Devuelve null si no matchea.
+  async findByApiKey(apiKey: string): Promise<Device | null> {
+    const apiKeyHash = hashApiKey(this.masterKeyB64, apiKey);
+    return this.prisma.device.findUnique({ where: { apiKeyHash } });
   }
 
   async update(
@@ -150,24 +172,21 @@ export class DevicesService {
     });
   }
 
-  decryptApiKey(device: Device): string {
-    return this.crypto.decrypt(device.apiKeyEncrypted);
-  }
-
-  async listEligibleForHealthCheck(): Promise<Device[]> {
-    return this.prisma.device.findMany({
-      where: { status: { in: [DeviceStatus.ACTIVE, DeviceStatus.OFFLINE] } },
-    });
-  }
-
-  async updateHeartbeat(id: string, online: boolean, batteryLevel: number | null): Promise<void> {
+  async updateHeartbeat(id: string, batteryLevel: number | null): Promise<void> {
     await this.prisma.device.update({
       where: { id },
       data: {
         lastHeartbeat: new Date(),
         batteryLevel,
-        status: online ? DeviceStatus.ACTIVE : DeviceStatus.OFFLINE,
+        status: DeviceStatus.ACTIVE,
       },
+    });
+  }
+
+  async updateFcmToken(id: string, fcmToken: string): Promise<void> {
+    await this.prisma.device.update({
+      where: { id },
+      data: { fcmToken, lastHeartbeat: new Date(), status: DeviceStatus.ACTIVE },
     });
   }
 }

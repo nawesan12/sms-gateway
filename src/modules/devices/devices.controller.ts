@@ -20,10 +20,12 @@ export class DevicesController {
     reply: FastifyReply,
   ): Promise<void> => {
     const actorId = req.authUser?.id ?? 'unknown';
-    const created = await this.service.create(req.body, actorId, req.correlationId);
+    const { device, apiKey } = await this.service.create(req.body, actorId, req.correlationId);
     reply.code(201).send({
       success: true,
-      data: created,
+      // apiKey en plaintext: visible una sola vez. La app Android la pega
+      // en su pantalla "Connect" junto con device.id.
+      data: { ...device, apiKey },
       error: null,
       meta: { requestId: req.correlationId, timestamp: new Date().toISOString() },
     });

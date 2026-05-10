@@ -1,9 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import IORedis from 'ioredis';
-import { TextBeeProvider } from '@/modules/sms/providers/textbee.provider.js';
+import { FcmProvider } from '@/modules/sms/providers/fcm.provider.js';
 import { SmsService } from '@/modules/sms/sms.service.js';
 import { DeviceRouter } from '@/modules/sms/device-router.js';
-import { DeviceCrypto } from '@/modules/devices/crypto.js';
 import { buildSmsQueue } from '@/queue/queues.js';
 import { AuthService } from './auth.service.js';
 import { AccessTokenService } from './access-token.service.js';
@@ -23,22 +22,13 @@ import {
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   const env = app.env;
 
-  const provider = new TextBeeProvider(env, app.log);
-  const crypto = new DeviceCrypto(env.MASTER_ENCRYPTION_KEY_B64);
+  const provider = new FcmProvider(app.fcm, app.log);
   const router = DeviceRouter.create(app.prisma, env, app.log);
 
   const { queue: smsQueue, client: smsQueueClient } = buildSmsQueue(env);
   const rlClient = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
 
-  const smsService = new SmsService(
-    app.prisma,
-    env,
-    app.log,
-    provider,
-    router,
-    crypto,
-    rlClient,
-  );
+  const smsService = new SmsService(app.prisma, env, app.log, provider, router, rlClient);
 
   app.addHook('onClose', async () => {
     await smsQueue.close();

@@ -2,6 +2,7 @@ import 'fastify';
 import type { FastifyRequest } from 'fastify';
 import type { PrismaClient, User } from '@prisma/client';
 import type Redis from 'ioredis';
+import type { Messaging } from 'firebase-admin/messaging';
 import type { AppEnv } from '@/config/env.js';
 import type { Logger } from 'pino';
 
@@ -10,6 +11,7 @@ declare module 'fastify' {
     env: AppEnv;
     prisma: PrismaClient;
     redis: Redis;
+    fcm: Messaging | null;
     appLogger: Logger;
   }
 

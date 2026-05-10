@@ -4,12 +4,12 @@ import { PrismaClient } from '@prisma/client';
 import type { AppEnv } from '@/config/env.js';
 import type { AppLogger } from '@/lib/logger-types.js';
 import { QUEUE_NAMES, AUDIT_EVENTS } from '@/config/constants.js';
-import { TextBeeProvider } from '@/modules/sms/providers/textbee.provider.js';
+import { FcmProvider } from '@/modules/sms/providers/fcm.provider.js';
 import { SmsService } from '@/modules/sms/sms.service.js';
 import { DeviceRouter } from '@/modules/sms/device-router.js';
-import { DeviceCrypto } from '@/modules/devices/crypto.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
+import { initFcmFromEnv } from '@/lib/fcm-init.js';
 import { metrics } from '@/plugins/metrics.js';
 import { buildDlqQueue } from '../queues.js';
 import type { SmsSendJob } from '../jobs/job.types.js';
@@ -21,15 +21,15 @@ export interface SmsSendWorkerHandle {
 
 export function startSmsSendWorker(env: AppEnv, logger: AppLogger): SmsSendWorkerHandle {
   const prisma = new PrismaClient();
-  const provider = new TextBeeProvider(env, logger);
-  const crypto = new DeviceCrypto(env.MASTER_ENCRYPTION_KEY_B64);
+  const fcm = initFcmFromEnv(env, logger);
+  const provider = new FcmProvider(fcm, logger);
   const router = DeviceRouter.create(prisma, env, logger);
   const audit = new AuditService(prisma, logger);
   const tokens = new TokensService(prisma, logger);
   const { queue: dlq, client: dlqClient } = buildDlqQueue(env);
 
   const connectionClient = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
-  const sms = new SmsService(prisma, env, logger, provider, router, crypto, connectionClient);
+  const sms = new SmsService(prisma, env, logger, provider, router, connectionClient);
 
   const worker = new Worker<SmsSendJob>(
     QUEUE_NAMES.SMS_SEND,

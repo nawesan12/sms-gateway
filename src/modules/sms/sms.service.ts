@@ -2,10 +2,9 @@ import { SmsStatus, type PrismaClient, type Device } from '@prisma/client';
 import type IORedis from 'ioredis';
 import type { AppEnv } from '@/config/env.js';
 import type { AppLogger } from '@/lib/logger-types.js';
-import type { DeviceCrypto } from '@/modules/devices/crypto.js';
 import { metrics } from '@/plugins/metrics.js';
 import type { SmsProvider } from './providers/sms-provider.interface.js';
-import type { SendResult } from './providers/textbee.types.js';
+import type { SendResult } from './providers/provider.types.js';
 import { SmsRepository } from './sms.repository.js';
 import type { DeviceRouter } from './device-router.js';
 
@@ -33,7 +32,6 @@ export class SmsService {
     private readonly logger: AppLogger,
     private readonly provider: SmsProvider,
     private readonly router: DeviceRouter,
-    private readonly crypto: DeviceCrypto,
     private readonly redis: IORedis | null = null,
   ) {
     this.repo = new SmsRepository(prisma);
@@ -63,11 +61,7 @@ export class SmsService {
 
       if (attempt === 0 && input.deviceIdHint) {
         const hinted = await this.prisma.device.findUnique({ where: { id: input.deviceIdHint } });
-        if (
-          hinted &&
-          !exclude.has(hinted.id) &&
-          this.router.circuitBreaker.isAvailable(hinted)
-        ) {
+        if (hinted && !exclude.has(hinted.id) && this.router.circuitBreaker.isAvailable(hinted)) {
           candidate = hinted;
         } else {
           candidate = await this.router.select(excludeArr);
@@ -111,11 +105,10 @@ export class SmsService {
       data: { deviceId: device.id },
     });
 
-    const apiKey = this.crypto.decrypt(device.apiKeyEncrypted);
     const start = Date.now();
     const result = await this.provider.sendSMS({
-      textbeeDeviceId: device.textbeeDeviceId,
-      apiKey,
+      device,
+      smsMessageId: input.smsMessageId,
       recipients: [input.recipientE164],
       message: input.message,
     });

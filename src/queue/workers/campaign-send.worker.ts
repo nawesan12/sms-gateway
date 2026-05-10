@@ -4,10 +4,10 @@ import { CampaignStatus, DeliveryStatus, PrismaClient } from '@prisma/client';
 import type { AppEnv } from '@/config/env.js';
 import type { AppLogger } from '@/lib/logger-types.js';
 import { AUDIT_EVENTS, ERROR_CODES, QUEUE_NAMES } from '@/config/constants.js';
-import { TextBeeProvider } from '@/modules/sms/providers/textbee.provider.js';
+import { FcmProvider } from '@/modules/sms/providers/fcm.provider.js';
 import { SmsService } from '@/modules/sms/sms.service.js';
 import { DeviceRouter } from '@/modules/sms/device-router.js';
-import { DeviceCrypto } from '@/modules/devices/crypto.js';
+import { initFcmFromEnv } from '@/lib/fcm-init.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { renderTemplate } from '@/lib/template.js';
@@ -20,14 +20,14 @@ export interface CampaignWorkerHandle {
 
 export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): CampaignWorkerHandle {
   const prisma = new PrismaClient();
-  const provider = new TextBeeProvider(env, logger);
-  const crypto = new DeviceCrypto(env.MASTER_ENCRYPTION_KEY_B64);
+  const fcm = initFcmFromEnv(env, logger);
+  const provider = new FcmProvider(fcm, logger);
   const router = DeviceRouter.create(prisma, env, logger);
   const tokens = new TokensService(prisma, logger);
   const audit = new AuditService(prisma, logger);
 
   const connectionClient = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
-  const sms = new SmsService(prisma, env, logger, provider, router, crypto, connectionClient);
+  const sms = new SmsService(prisma, env, logger, provider, router, connectionClient);
 
   const worker = new Worker<CampaignSendJob>(
     QUEUE_NAMES.CAMPAIGN_SEND,

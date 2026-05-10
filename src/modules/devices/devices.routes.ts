@@ -1,5 +1,4 @@
 import type { FastifyInstance } from 'fastify';
-import { DeviceCrypto } from './crypto.js';
 import { DevicesService } from './devices.service.js';
 import { DevicesController } from './devices.controller.js';
 import {
@@ -12,8 +11,7 @@ import {
 } from './devices.schemas.js';
 
 export async function registerDevicesRoutes(app: FastifyInstance): Promise<void> {
-  const crypto = new DeviceCrypto(app.env.MASTER_ENCRYPTION_KEY_B64);
-  const service = new DevicesService(app.prisma, crypto, app.log);
+  const service = new DevicesService(app.prisma, app.env.MASTER_ENCRYPTION_KEY_B64, app.log);
   const controller = new DevicesController(service);
 
   app.get(

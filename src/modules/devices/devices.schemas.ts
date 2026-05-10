@@ -7,8 +7,6 @@ export type DeviceParamIdT = Static<typeof DeviceParamId>;
 
 export const CreateDeviceBody = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 100 }),
-  textbeeDeviceId: Type.String({ minLength: 1, maxLength: 100 }),
-  apiKey: Type.String({ minLength: 8, maxLength: 256 }),
   priority: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000 })),
 });
 export type CreateDeviceBodyT = Static<typeof CreateDeviceBody>;

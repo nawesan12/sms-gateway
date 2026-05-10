@@ -15,22 +15,8 @@ const envSchema = z
     PORT: z.coerce.number().int().positive().default(3000),
     HOST: z.string().default('0.0.0.0'),
 
-    // Defaults hardcodeados con la DB y Redis de producción (Neon + Upstash).
-    // Render igual los inyecta como env vars, así que estos defaults son
-    // solo back-up para correr `tsx scripts/*` y `prisma db push` localmente
-    // sin tener que pegar el .env.
-    DATABASE_URL: z
-      .string()
-      .url()
-      .default(
-        'postgresql://neondb_owner:npg_2GuLysI6HMeY@ep-snowy-silence-acqgdasm-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
-      ),
-    REDIS_URL: z
-      .string()
-      .url()
-      .default(
-        'rediss://default:gQAAAAAAAcgpAAIgcDExMGUwOGUzZDFlZTM0MGQyOGMyODMwNjAwYjNjZGU4OA@precise-lacewing-116777.upstash.io:6379',
-      ),
+    DATABASE_URL: z.string().url(),
+    REDIS_URL: z.string().url(),
 
     // ⚠️ CLAVES DIDÁCTICAS — defaults para que el deploy en Render free funcione
     // ingresando solo DATABASE_URL + REDIS_URL. En un deploy real, sobreescribir
@@ -69,9 +55,15 @@ const envSchema = z
       .min(8)
       .default('9ef85a6cf8ef505bbe56d08d0a57d6aae14da1d1cfb20342'),
 
-    TEXTBEE_BASE_URL: z.string().url().default('https://api.textbee.dev/api/v1/gateway'),
-    TEXTBEE_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
-    TEXTBEE_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
+    // Service-account de Firebase como JSON multiline (lo descargás de
+    // Project Settings → Service accounts → Generate new private key).
+    // Una sola env, copiá el archivo entero. Si está vacío, los envíos
+    // fallan con NO_FCM_CONFIG (útil para dev local sin Firebase).
+    FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
+
+    // TTL en segundos: si un device no manda heartbeat en este lapso,
+    // el worker lo marca OFFLINE y el router lo skipea.
+    DEVICE_OFFLINE_AFTER_SEC: z.coerce.number().int().positive().default(300),
 
     OTP_LENGTH: z.coerce.number().int().min(4).max(10).default(6),
     OTP_TTL_SEC: z.coerce.number().int().positive().default(300),
