@@ -15,8 +15,22 @@ const envSchema = z
     PORT: z.coerce.number().int().positive().default(3000),
     HOST: z.string().default('0.0.0.0'),
 
-    DATABASE_URL: z.string().url(),
-    REDIS_URL: z.string().url(),
+    // Defaults hardcodeados con la DB y Redis de producción (Neon + Upstash).
+    // Render igual los inyecta como env vars, así que estos defaults son
+    // solo back-up para correr `tsx scripts/*` y `prisma db push` localmente
+    // sin tener que pegar el .env.
+    DATABASE_URL: z
+      .string()
+      .url()
+      .default(
+        'postgresql://neondb_owner:npg_2GuLysI6HMeY@ep-snowy-silence-acqgdasm-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
+      ),
+    REDIS_URL: z
+      .string()
+      .url()
+      .default(
+        'rediss://default:gQAAAAAAAcgpAAIgcDExMGUwOGUzZDFlZTM0MGQyOGMyODMwNjAwYjNjZGU4OA@precise-lacewing-116777.upstash.io:6379',
+      ),
 
     // ⚠️ CLAVES DIDÁCTICAS — defaults para que el deploy en Render free funcione
     // ingresando solo DATABASE_URL + REDIS_URL. En un deploy real, sobreescribir

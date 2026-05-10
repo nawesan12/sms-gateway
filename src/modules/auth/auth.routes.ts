@@ -26,10 +26,19 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   const provider = new TextBeeProvider(env, app.log);
   const crypto = new DeviceCrypto(env.MASTER_ENCRYPTION_KEY_B64);
   const router = DeviceRouter.create(app.prisma, env, app.log);
-  const smsService = new SmsService(app.prisma, env, app.log, provider, router, crypto);
 
   const { queue: smsQueue, client: smsQueueClient } = buildSmsQueue(env);
   const rlClient = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
+
+  const smsService = new SmsService(
+    app.prisma,
+    env,
+    app.log,
+    provider,
+    router,
+    crypto,
+    rlClient,
+  );
 
   app.addHook('onClose', async () => {
     await smsQueue.close();

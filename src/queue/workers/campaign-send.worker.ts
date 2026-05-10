@@ -23,11 +23,11 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
   const provider = new TextBeeProvider(env, logger);
   const crypto = new DeviceCrypto(env.MASTER_ENCRYPTION_KEY_B64);
   const router = DeviceRouter.create(prisma, env, logger);
-  const sms = new SmsService(prisma, env, logger, provider, router, crypto);
   const tokens = new TokensService(prisma, logger);
   const audit = new AuditService(prisma, logger);
 
   const connectionClient = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
+  const sms = new SmsService(prisma, env, logger, provider, router, crypto, connectionClient);
 
   const worker = new Worker<CampaignSendJob>(
     QUEUE_NAMES.CAMPAIGN_SEND,

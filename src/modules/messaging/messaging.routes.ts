@@ -19,7 +19,15 @@ export async function registerMessagingRoutes(app: FastifyInstance): Promise<voi
   const provider = new TextBeeProvider(env, app.log);
   const crypto = new DeviceCrypto(env.MASTER_ENCRYPTION_KEY_B64);
   const router = DeviceRouter.create(app.prisma, env, app.log);
-  const smsService = new SmsService(app.prisma, env, app.log, provider, router, crypto);
+  const smsService = new SmsService(
+    app.prisma,
+    env,
+    app.log,
+    provider,
+    router,
+    crypto,
+    app.redis,
+  );
   const tokens = new TokensService(app.prisma, app.log);
   const { queue: smsQueue, client: smsQueueClient } = buildSmsQueue(env);
 

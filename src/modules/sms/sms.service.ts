@@ -1,4 +1,5 @@
 import { SmsStatus, type PrismaClient, type Device } from '@prisma/client';
+import type IORedis from 'ioredis';
 import type { AppEnv } from '@/config/env.js';
 import type { AppLogger } from '@/lib/logger-types.js';
 import type { DeviceCrypto } from '@/modules/devices/crypto.js';
@@ -21,6 +22,8 @@ export interface DispatchOutput {
   result: SendResult;
 }
 
+const COOLDOWN_LOOKUP_MAX_ATTEMPTS = 10;
+
 export class SmsService {
   private readonly repo: SmsRepository;
 
@@ -31,6 +34,7 @@ export class SmsService {
     private readonly provider: SmsProvider,
     private readonly router: DeviceRouter,
     private readonly crypto: DeviceCrypto,
+    private readonly redis: IORedis | null = null,
   ) {
     this.repo = new SmsRepository(prisma);
   }
@@ -50,21 +54,56 @@ export class SmsService {
   }
 
   async dispatch(input: DispatchInput): Promise<DispatchOutput> {
-    const exclude = input.excludeDeviceIds ?? [];
-    let device: Device;
-    if (input.deviceIdHint) {
-      const candidate = await this.prisma.device.findUnique({ where: { id: input.deviceIdHint } });
-      if (
-        !candidate ||
-        exclude.includes(candidate.id) ||
-        !this.router.circuitBreaker.isAvailable(candidate)
-      ) {
-        device = await this.router.select(exclude);
+    const exclude = new Set(input.excludeDeviceIds ?? []);
+    let device: Device | null = null;
+
+    for (let attempt = 0; attempt < COOLDOWN_LOOKUP_MAX_ATTEMPTS; attempt++) {
+      const excludeArr = Array.from(exclude);
+      let candidate: Device;
+
+      if (attempt === 0 && input.deviceIdHint) {
+        const hinted = await this.prisma.device.findUnique({ where: { id: input.deviceIdHint } });
+        if (
+          hinted &&
+          !exclude.has(hinted.id) &&
+          this.router.circuitBreaker.isAvailable(hinted)
+        ) {
+          candidate = hinted;
+        } else {
+          candidate = await this.router.select(excludeArr);
+        }
       } else {
-        device = candidate;
+        candidate = await this.router.select(excludeArr);
       }
-    } else {
-      device = await this.router.select(exclude);
+
+      // Cooldown lock: si el device tiene minDelayBetweenMs > 0, intentar
+      // tomar un lock distribuido en Redis con TTL = minDelayBetweenMs.
+      // Si ya está tomado, ese device está en cooldown — probar otro.
+      if (this.redis && candidate.minDelayBetweenMs > 0) {
+        const lockKey = `sms:device:${candidate.id}:cooldown`;
+        const acquired = await this.redis.set(
+          lockKey,
+          '1',
+          'PX',
+          candidate.minDelayBetweenMs,
+          'NX',
+        );
+        if (acquired === null) {
+          this.logger.debug(
+            { deviceId: candidate.id, minDelayBetweenMs: candidate.minDelayBetweenMs },
+            'device in cooldown, trying next',
+          );
+          exclude.add(candidate.id);
+          continue;
+        }
+      }
+
+      device = candidate;
+      break;
+    }
+
+    if (!device) {
+      throw new Error('DEVICE_COOLDOWN: all eligible devices are in cooldown');
     }
 
     await this.prisma.smsMessage.update({

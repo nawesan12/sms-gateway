@@ -19,6 +19,7 @@ export const UpdateDeviceBody = Type.Object({
   status: Type.Optional(
     Type.Union([Type.Literal('ACTIVE'), Type.Literal('INACTIVE'), Type.Literal('OFFLINE')]),
   ),
+  minDelayBetweenMs: Type.Optional(Type.Integer({ minimum: 0, maximum: 600_000 })),
 });
 export type UpdateDeviceBodyT = Static<typeof UpdateDeviceBody>;
 
@@ -32,6 +33,7 @@ export const DevicePublic = Type.Object({
   lastHeartbeat: Type.Union([Type.String(), Type.Null()]),
   failureCount: Type.Integer(),
   circuitState: Type.String(),
+  minDelayBetweenMs: Type.Integer(),
   createdAt: Type.String(),
   updatedAt: Type.String(),
 });

@@ -16,6 +16,7 @@ export interface UpdateDeviceInput {
   name?: string;
   priority?: number;
   status?: DeviceStatus;
+  minDelayBetweenMs?: number;
 }
 
 export interface PublicDevice {
@@ -28,6 +29,7 @@ export interface PublicDevice {
   lastHeartbeat: Date | null;
   failureCount: number;
   circuitState: string;
+  minDelayBetweenMs: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -54,6 +56,7 @@ export class DevicesService {
       lastHeartbeat: device.lastHeartbeat,
       failureCount: device.failureCount,
       circuitState: device.circuitState,
+      minDelayBetweenMs: device.minDelayBetweenMs,
       createdAt: device.createdAt,
       updatedAt: device.updatedAt,
     };
@@ -117,6 +120,9 @@ export class DevicesService {
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(input.priority !== undefined ? { priority: input.priority } : {}),
         ...(input.status !== undefined ? { status: input.status } : {}),
+        ...(input.minDelayBetweenMs !== undefined
+          ? { minDelayBetweenMs: input.minDelayBetweenMs }
+          : {}),
       },
     });
     await this.audit.record({

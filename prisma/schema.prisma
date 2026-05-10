@@ -102,20 +102,21 @@ enum SmsStatus {
 // DEVICES
 // =============================================================================
 model Device {
-  id              String       @id @default(uuid())
-  name            String
-  textbeeDeviceId String       @unique
-  apiKeyEncrypted String
-  priority        Int          @default(100)
-  status          DeviceStatus @default(ACTIVE)
-  batteryLevel    Int?
-  lastHeartbeat   DateTime?
-  failureCount    Int          @default(0)
-  circuitState    CircuitState @default(CLOSED)
-  circuitOpenedAt DateTime?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  smsMessages     SmsMessage[]
+  id                String       @id @default(uuid())
+  name              String
+  textbeeDeviceId   String       @unique
+  apiKeyEncrypted   String
+  priority          Int          @default(100)
+  status            DeviceStatus @default(ACTIVE)
+  batteryLevel      Int?
+  lastHeartbeat     DateTime?
+  failureCount      Int          @default(0)
+  circuitState      CircuitState @default(CLOSED)
+  circuitOpenedAt   DateTime?
+  minDelayBetweenMs Int          @default(0)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  smsMessages       SmsMessage[]
 
   @@index([status, priority])
   @@map("devices")
