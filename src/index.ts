@@ -1,4 +1,5 @@
 import { buildApp } from './app.js';
+import { syncDatabaseSchema } from './bootstrap/db-sync.js';
 import { seedAdminIfMissing } from './bootstrap/seed-admin.js';
 import { startSmsSendWorker } from './queue/workers/sms-send.worker.js';
 import { startDeviceHealthWorker } from './queue/workers/device-health.worker.js';
@@ -7,13 +8,24 @@ import { startCampaignSendWorker } from './queue/workers/campaign-send.worker.js
 async function main(): Promise<void> {
   const app = await buildApp();
   const env = app.env;
+  const bootstrapLog = app.log.child({ scope: 'bootstrap' });
+
+  // Schema sync: corre `prisma db push` en cada boot. Idempotente.
+  // Vive en el proceso (no en el startCommand del PaaS) para no depender
+  // de cómo la persona configure el dashboard de Render.
+  try {
+    await syncDatabaseSchema(bootstrapLog);
+  } catch (err) {
+    bootstrapLog.error({ err }, 'db schema sync failed — aborting boot');
+    process.exit(1);
+  }
 
   // Auto-seed del admin operador (idempotente). En Render free no hay Shell,
   // así que `npm run prisma:seed` no es viable; lo hacemos en cada boot.
   await seedAdminIfMissing({
     prisma: app.prisma,
     phoneE164: env.BOOTSTRAP_ADMIN_PHONE,
-    logger: app.log.child({ scope: 'bootstrap' }),
+    logger: bootstrapLog,
   });
 
   // En plan free de Render no hay Background Workers, así que los corremos
