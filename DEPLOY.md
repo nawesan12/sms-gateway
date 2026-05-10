@@ -2,9 +2,11 @@
 
 Guía completa para deployar el sistema multi-tenant en Render desde cero, todo en plan gratis. Apta para enseñar / demos.
 
-El stack: **1 service en Render (API + workers en el mismo proceso)**, **Postgres en Supabase free**, **Redis en Upstash free**. Costo total: **$0/mes**.
+El stack: **1 Web Service en Render (API + workers + UI en el mismo proceso)**, **Postgres en Supabase free**, **Redis en Upstash free**. Costo total: **$0/mes**.
 
 > **Por qué un solo service**: el plan free de Render NO incluye Background Workers, así que los workers BullMQ corren dentro del mismo proceso del web service. Esto significa que mientras el service esté despierto, los SMS se procesan; mientras esté dormido, los jobs quedan en cola hasta que el service vuelve a la vida.
+
+> **Por qué se sirve el frontend desde el mismo service**: el bundle Vite (`web/dist/`) está pre-buildeado y commiteado al repo. Render solo compila el backend → no hay OOM, no hay segundo `npm ci`, el deploy es ~2 min más rápido y no acopla la compilación del frontend a la disponibilidad de la DB.
 
 ---
 
@@ -14,18 +16,29 @@ El stack: **1 service en Render (API + workers en el mismo proceso)**, **Postgre
 |---|---|
 | El service se duerme tras ~15 min sin tráfico | Primer request post-sleep tarda ~30 s. Workers tampoco procesan mientras duerme. |
 | 750 horas/mes de uptime | Alcanza para 1 service 24/7. |
-| 512 MB RAM, 0.1 CPU | Suficiente para tráfico bajo. Si el build da OOM, partir el frontend a Static Site aparte. |
+| 512 MB RAM, 0.1 CPU | Suficiente para tráfico bajo (alcanza porque Render solo compila el backend). |
 | Sin static IP | TextBee no puede whitelistear la IP del service. |
 | Disco efímero | Nada se persiste en disco entre deploys/restarts. |
 | Logs limitados (pocos días) | Para debugging serio, mandar Pino a Logtail/Axiom. |
 
 ---
 
-## Paso 0 — Push del repo al `main` actual
+## Paso 0 — Clonar el repo (solo si vas a deployar a TU Render)
 
-El `render.yaml` y `package.json` ya están adaptados a free. Cualquier `git push` a `main` dispara auto-deploy.
+Si solo vas a deployar lo que ya está en el repo (sin tocar código), el frontend ya viene **pre-buildeado en `web/dist/` y commiteado**. No tenés que correr `npm install` ni nada local: solo necesitás la URL del repo para pegarla en Render más adelante.
 
 ```bash
+# (opcional) clonar para mirar el código
+git clone <URL-DEL-REPO>
+cd sms-gateway
+```
+
+Si **modificaste algo en `web/src/`**, antes de pushear:
+
+```bash
+npm --prefix web ci
+npm --prefix web run build  # regenera web/dist/
+
 git add .
 git commit -m "deploy: render free"
 git push origin main
@@ -62,24 +75,41 @@ Esa es la `REDIS_URL`. Guardala.
 
 ---
 
-## Paso 3 — Crear el Blueprint en Render
+## Paso 3 — Crear el Web Service en Render
 
-> El repo es público — Render permite deployar repos públicos sin OAuth de GitHub.
+> El repo es público — Render permite deployar repos públicos sin OAuth de GitHub. **No usamos Blueprint ni Docker**: el servicio se configura a mano en el dashboard.
 
 1. Crear cuenta en https://render.com con email/Google. **No conectar GitHub.**
-2. **New → Blueprint**.
+2. **New → Web Service**.
 3. Click en **"Public Git Repository"**.
-4. Pegar la URL del repo.
-5. **Connect** → Render lee el `render.yaml`.
-6. **Apply**. Render crea **1 service**: `sms-gateway` (web, **plan free**).
+4. Pegar la URL del repo y **Connect**.
+5. Configurar:
+   - **Name**: `sms-gateway` (genera URL `https://sms-gateway-XXXX.onrender.com`)
+   - **Region**: Oregon (o la más cercana al tráfico esperado)
+   - **Branch**: `main`
+   - **Runtime**: `Node`
+   - **Build Command**:
+     ```
+     npm ci --include=dev && npx prisma generate && npm run build
+     ```
+   - **Start Command**:
+     ```
+     npx prisma db push --accept-data-loss --skip-generate && node dist/index.js
+     ```
+   - **Plan**: `Free`
+   - **Health Check Path**: `/health`
+   - **Auto-Deploy**: `Yes`
+6. Click en **Advanced** y agregá:
+   - `NODE_VERSION` = `22`
+   - `NODE_ENV` = `production`
 
-> El primer deploy va a **fallar** al arrancar porque faltan `DATABASE_URL`/`DIRECT_URL`/`REDIS_URL`/`APP_BASE_URL`. Es esperado.
+> Las dos env vars de DB y Redis se agregan en el paso 4. El primer deploy va a fallar si las dejás vacías — es esperado.
 
 ---
 
 ## Paso 4 — Setear las 2 env vars en Render
 
-En el dashboard del service → **Environment → Edit env vars** y completar:
+En el dashboard del service → **Environment → Add environment variable**:
 
 | Key | Valor |
 |---|---|
@@ -88,9 +118,9 @@ En el dashboard del service → **Environment → Edit env vars** y completar:
 
 > `APP_BASE_URL` no hace falta setearla: el código toma `RENDER_EXTERNAL_URL` automáticamente (Render lo inyecta con el subdominio público). Solo seteala a mano si usás un dominio custom.
 
-Las otras claves (`JWT_*_B64`, `MASTER_ENCRYPTION_KEY_B64`, `ADMIN_BOOTSTRAP_TOKEN`) ya están **hardcodeadas en `render.yaml`** porque esto es para enseñar. ⚠️ En un deploy real cambialas por valores propios y movelas a `sync: false`.
+> Las otras claves sensibles (`JWT_*_B64`, `MASTER_ENCRYPTION_KEY_B64`, `ADMIN_BOOTSTRAP_TOKEN`) tienen **defaults didácticos hardcodeados en `src/config/env.ts`** para que el deploy funcione ingresando solo estas dos variables. ⚠️ En un deploy real, sobreescribilas en el dashboard con valores propios.
 
-**Save** → Render redeploya. Esta vez el `buildCommand` corre `prisma db push`, crea todas las tablas en Supabase y arranca el proceso. **En el primer arranque el admin operador se crea automáticamente** (teléfono `+5491100000001` por default, configurable con la env var `BOOTSTRAP_ADMIN_PHONE`).
+**Save** → Render redeploya. El `startCommand` corre `prisma db push`, crea todas las tablas en Supabase y arranca el proceso. **En el primer arranque el admin operador se crea automáticamente** (teléfono `+5491100000001` por default, configurable con la env var `BOOTSTRAP_ADMIN_PHONE`).
 
 ---
 
@@ -290,4 +320,10 @@ curl -X POST $API/v1/admin/devices \
 → Regenerar con `POST /v1/admin/auth/access-link` (sin `initialTokens` para no recargar). El link viejo queda invalidado, el saldo se mantiene.
 
 **Build OOM (`JavaScript heap out of memory`)**
-→ El plan free tiene 512 MB. Soluciones: (1) partir el frontend a un Static Site aparte (también gratis); (2) cachear node_modules con artifacts en CI antes de subir a Render.
+→ El plan free tiene 512 MB. Render solo compila el backend (el frontend va pre-buildeado en `web/dist/`), así que no debería pasar. Si pasa, asegurate que estás usando este flujo (no el viejo que buildeaba Vite en Render) y que `web/dist/` está commiteado.
+
+**`npx prisma generate` baja Prisma 7 y rompe el schema (`url is no longer supported`)**
+→ El proyecto usa Prisma 6. Si el `npm ci` del build no instaló `prisma` localmente (porque `NODE_ENV=production` lo omitió), `npx` baja la latest (v7) que es incompatible. Solución: el `buildCommand` de arriba usa `npm ci --include=dev` que fuerza la instalación de devDependencies aunque `NODE_ENV=production`.
+
+**Frontend pre-buildeado quedó desactualizado**
+→ Si tocaste algo en `web/src/` y no rebuildeaste localmente, los cambios no van al deploy. Correr `npm --prefix web run build` antes del commit.

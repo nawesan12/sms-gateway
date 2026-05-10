@@ -1,5 +1,4 @@
 node_modules/
-dist/
 coverage/
 .env
 .env.*
@@ -18,7 +17,8 @@ scripts/deploy/accounts.json
 
 # Web
 web/node_modules/
-web/dist/
+# web/dist/ se commitea: el frontend se pre-buildea localmente y Render
+# solo compila el backend (evita OOM y desacopla el deploy del Vite).
 
 # Local CLI config (no commitear: contiene el bootstrap token)
 scripts/gateway.env

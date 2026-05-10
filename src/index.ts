@@ -33,11 +33,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, 'shutting down API + workers');
     try {
-      await Promise.all([
-        smsHandle.shutdown(),
-        healthHandle.shutdown(),
-        campaignHandle.shutdown(),
-      ]);
+      await Promise.all([smsHandle.shutdown(), healthHandle.shutdown(), campaignHandle.shutdown()]);
       await app.close();
       process.exit(0);
     } catch (err) {
