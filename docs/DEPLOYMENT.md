@@ -181,16 +181,11 @@ Hay 2 caminos. Elegí uno.
 Si preferís no usar Blueprint:
 
 1. **PostgreSQL** → New + → PostgreSQL → plan free → región `oregon`. Copiá la *Internal Connection String* (`postgresql://...`).
-2. **Redis** → New + → Key Value → free → oregon. Copiá la *Internal Connection String* (`rediss://...`).
-3. **Web Service** (API):
+2. **Web Service** (API + workers en el mismo proceso):
    - Source: **Existing Image** → URL: `docker.io/<usuario>/sms-gateway:latest`
    - Plan: Starter ($7/mo)
    - Health check path: `/health`
-   - Env vars (todas las de `render.yaml` + los secrets de `secrets.env`).
-4. **Background Worker**:
-   - Mismo Docker image.
-   - **Docker Command** (override): `node dist/worker.js`
-   - Mismas env vars que la API.
+   - Env vars (todas las de `render.yaml` + los secrets de `secrets.env`). **No hace falta Redis**: la cola corre en Postgres y los rate-limits en memoria.
 
 ---
 
@@ -278,7 +273,7 @@ Para cada cliente:
 | `DEVICE_OFFLINE` al enviar | no hay devices `ACTIVE` | registrar device + verificar que la app TextBee del Android esté online |
 | Health check `/health/ready` devuelve `degraded` | falta device activo | registrar device |
 | Push a Docker Hub falla con `denied: requested access to the resource is denied` | repo no existe o token sin permisos write | crear repo en hub.docker.com + regenerar token con permiso write |
-| Worker no procesa jobs | falta env var `REDIS_URL` o cola distinta | comparar `REDIS_URL` entre API y Worker |
+| Worker no procesa jobs | FCM no configurado o sin devices con `fcmToken` | `curl /v1/debug/dispatch-check` con bootstrap token; ver `fcm.configured` y `devices[].hasFcmToken` |
 
 ---
 

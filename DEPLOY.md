@@ -2,7 +2,7 @@
 
 Guía completa para deployar el sistema multi-tenant en Render desde cero, todo en plan gratis. Apta para enseñar / demos.
 
-El stack: **1 Web Service en Render (API + workers + UI en el mismo proceso)**, **Postgres en Supabase free**, **Redis en Upstash free**. Costo total: **$0/mes**.
+El stack: **1 Web Service en Render (API + workers + UI en el mismo proceso)**, **Postgres en Supabase free**. Sin Redis: la cola corre en Postgres y los rate-limits en memoria. Costo total: **$0/mes**.
 
 > **Por qué un solo service**: el plan free de Render NO incluye Background Workers, así que los workers BullMQ corren dentro del mismo proceso del web service. Esto significa que mientras el service esté despierto, los SMS se procesan; mientras esté dormido, los jobs quedan en cola hasta que el service vuelve a la vida.
 
@@ -62,20 +62,7 @@ Guardá la URL — esa es tu `DATABASE_URL`.
 
 ---
 
-## Paso 2 — Crear Redis en Upstash
-
-1. Ir a https://upstash.com → **Create Database** → tipo **Redis**.
-2. Region cercana, **TLS/SSL: Enabled**.
-3. En el dashboard de la DB → **Connect → Node** → copiar la **TLS connection string** (empieza con `rediss://`):
-   ```
-   rediss://default:<TOKEN>@<host>.upstash.io:6379
-   ```
-
-Esa es la `REDIS_URL`. Guardala.
-
----
-
-## Paso 3 — Crear el Web Service en Render
+## Paso 2 — Crear el Web Service en Render
 
 > El repo es público — Render permite deployar repos públicos sin OAuth de GitHub. **No usamos Blueprint ni Docker**: el servicio se configura a mano en el dashboard.
 
@@ -104,35 +91,41 @@ Esa es la `REDIS_URL`. Guardala.
    - `NODE_VERSION` = `22`
    - `NODE_ENV` = `production`
 
-> Las dos env vars de DB y Redis se agregan en el paso 4. El primer deploy va a fallar si las dejás vacías — es esperado.
+> Las env vars se agregan en el paso 3. El primer deploy va a fallar si las dejás vacías — es esperado.
 
 ---
 
-## Paso 4 — Setear las 2 env vars en Render
+## Paso 3 — Setear env vars en Render
 
 En el dashboard del service → **Environment → Add environment variable**:
 
 | Key | Valor |
 |---|---|
 | `DATABASE_URL` | URL del **pooler** de Supabase (puerto 6543, del paso 1) |
-| `REDIS_URL` | URL de Upstash (`rediss://...`, del paso 2) |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | JSON entero del service account de Firebase (Project Settings → Service accounts → Generate new private key). **Sin esto los envíos fallan con `NO_FCM_CONFIG`.** |
 
 > `APP_BASE_URL` no hace falta setearla: el código toma `RENDER_EXTERNAL_URL` automáticamente (Render lo inyecta con el subdominio público). Solo seteala a mano si usás un dominio custom.
 
-> Las otras claves sensibles (`JWT_*_B64`, `MASTER_ENCRYPTION_KEY_B64`, `ADMIN_BOOTSTRAP_TOKEN`) tienen **defaults didácticos hardcodeados en `src/config/env.ts`** para que el deploy funcione ingresando solo estas dos variables. ⚠️ En un deploy real, sobreescribilas en el dashboard con valores propios.
+> Las otras claves sensibles (`JWT_*_B64`, `MASTER_ENCRYPTION_KEY_B64`, `ADMIN_BOOTSTRAP_TOKEN`) tienen **defaults didácticos hardcodeados en `src/config/env.ts`** para que el deploy funcione ingresando solo lo de arriba. ⚠️ En un deploy real, sobreescribilas en el dashboard con valores propios.
 
-**Save** → Render redeploya. El `startCommand` corre `prisma db push`, crea todas las tablas en Supabase y arranca el proceso. **En el primer arranque el admin operador se crea automáticamente** (teléfono `+5491100000001` por default, configurable con la env var `BOOTSTRAP_ADMIN_PHONE`).
+> **No hay servicio de Redis.** La cola de jobs corre en Postgres (tabla `jobs`) y los rate-limits son en memoria. Si tu deploy histórico tiene una integración con Upstash, podés borrarla — el código actual no la usa.
+
+**Save** → Render redeploya. El boot corre `prisma db push`, crea todas las tablas en Supabase y arranca el proceso. **En el primer arranque el admin operador se crea automáticamente** (teléfono `+5491100000001` por default, configurable con la env var `BOOTSTRAP_ADMIN_PHONE`).
 
 ---
 
-## Paso 5 — Verificar
+## Paso 4 — Verificar
 
 ```bash
-# Health (devuelve 200 sin tocar DB/Redis)
+# Health (devuelve 200 sin tocar DB)
 curl https://sms-gateway-XXXX.onrender.com/health
 
-# Ready check (devuelve 200 si DB + Redis + al menos 1 device responden)
+# Ready check (devuelve 200 si DB + FCM + al menos 1 device responden)
 curl https://sms-gateway-XXXX.onrender.com/health/ready
+
+# Dispatch check (admin): FCM configurado + devices con fcmToken + queue depth
+curl -H "x-bootstrap-token: 9ef85a6cf8ef505bbe56d08d0a57d6aae14da1d1cfb20342" \
+  https://sms-gateway-XXXX.onrender.com/v1/debug/dispatch-check
 
 # Listado de clientes (200 con array vacío)
 curl -H "x-bootstrap-token: 9ef85a6cf8ef505bbe56d08d0a57d6aae14da1d1cfb20342" \
@@ -145,7 +138,7 @@ Si `/health` da 200 pero `/v1/admin/users` da 500, abrí los logs del service y 
 
 ---
 
-## Paso 6 — Configurar keepalive (gratis, recomendado)
+## Paso 5 — Configurar keepalive (gratis, recomendado)
 
 Para evitar que el service se duerma tras 15 min y los SMS encolados queden trabados, configurar un cron externo que pegue a `/health` cada 10 min.
 
@@ -163,7 +156,7 @@ Alternativa: **UptimeRobot** (gratis hasta 50 monitors, check cada 5 min).
 
 ---
 
-## Paso 7 — Onboardear primer cliente con el CLI
+## Paso 6 — Onboardear primer cliente con el CLI
 
 El repo trae `scripts/gateway.sh`, un wrapper sobre los endpoints admin para que no tengas que pegar curls a mano.
 
@@ -281,7 +274,7 @@ curl -X POST $API/v1/admin/devices \
 
 - **El subdominio de Render es fijo** una vez creado (`sms-gateway-XXXX.onrender.com`). Si después agregás un dominio custom, actualizá `APP_BASE_URL` y redeploy.
 - **Supabase free**: 500 MB de Postgres, pause automático tras 7 días inactivo. Si pausa, el primer query lo despierta (~10 s).
-- **Upstash free**: 10k commands/día, 256 MB. BullMQ con polling chequea Redis seguido — para una clase alcanza, para producción real subir de plan.
+- **Cola en Postgres**: cada worker polea la tabla `jobs` cada 500ms con `FOR UPDATE SKIP LOCKED`. Vale para un único proceso Node y un único celu. Si en algún momento escalás a múltiples workers o múltiples celus, ese mismo SKIP LOCKED ya soporta concurrencia, pero conviene subir el `pollIntervalMs` o mover a una cola dedicada.
 - **Claves hardcodeadas**: las `JWT_*_B64`, `MASTER_ENCRYPTION_KEY_B64` y `ADMIN_BOOTSTRAP_TOKEN` están en `render.yaml` por decisión consciente para fines didácticos. Cualquiera con acceso al repo puede firmar tokens y desencriptar lo encriptado en la DB. **No usar este repo así para datos reales de clientes.**
 - **`prisma db push` vs `migrate deploy`**: el blueprint usa `db push --accept-data-loss` porque no hay migraciones versionadas. Si cambiás el `schema.prisma` y hay drop de columnas, los datos en esas columnas se pierden. Para producción real, generar migrations con `prisma migrate dev` localmente, commitearlas, y cambiar el `buildCommand` a `prisma migrate deploy`.
 - **Operador vs cliente**:
@@ -302,8 +295,8 @@ curl -X POST $API/v1/admin/devices \
 **`prisma db push` falla con `prepared statement ...`**
 → Falta `?pgbouncer=true` en la `DATABASE_URL`. PgBouncer en transaction mode no soporta prepared statements; ese flag le dice a Prisma que no las use.
 
-**El log dice `MaxRetriesPerRequestError` o los workers no procesan jobs**
-→ La `REDIS_URL` está mal o el TLS no se aceptó. Tiene que empezar con `rediss://` (dos `s`).
+**Los workers no procesan jobs**
+→ Mirá `/v1/debug/dispatch-check`. Si `fcm.configured: false`, falta `FIREBASE_SERVICE_ACCOUNT_JSON`. Si no hay devices con `hasFcmToken: true`, la app Android nunca registró su token (pegar `PATCH /v1/gateway/devices/:id` con `{ fcmToken }`).
 
 **El service queda dormido y los SMS se atrasan**
 → Configurar el keepalive del paso 7. Mientras esté dormido, los jobs encolados no se procesan.

@@ -1,10 +1,11 @@
+import type { Prisma } from '@prisma/client';
 import { CampaignStatus, DeliveryStatus, type PrismaClient } from '@prisma/client';
-import type { Queue } from 'bullmq';
 import type { AppEnv } from '@/config/env.js';
 import type { AppLogger } from '@/lib/logger-types.js';
 import { AppError } from '@/plugins/error-handler.js';
 import { ERROR_CODES } from '@/config/constants.js';
 import { listTemplateVariables } from '@/lib/template.js';
+import type { PgQueue } from '@/queue/pg-queue.js';
 
 export interface CreateCampaignInput {
   name: string;
@@ -25,7 +26,7 @@ export class CampaignsService {
     private readonly prisma: PrismaClient,
     private readonly env: AppEnv,
     private readonly logger: AppLogger,
-    private readonly campaignQueue: Queue<CampaignSendJob>,
+    private readonly campaignQueue: PgQueue<CampaignSendJob>,
   ) {}
 
   async create(input: CreateCampaignInput, correlationId: string) {
@@ -127,50 +128,58 @@ export class CampaignsService {
       throw new AppError(ERROR_CODES.VALIDATION, 'Cannot launch a campaign with empty list', 400);
     }
 
-    // Create deliveries (one per member)
-    await this.prisma.campaignDelivery.createMany({
-      data: campaign.list.members.map((m) => ({
-        campaignId: campaign.id,
-        contactId: m.contactId,
-        status: DeliveryStatus.PENDING,
-      })),
-      skipDuplicates: true,
-    });
+    // Atomic: deliveries + campaign status + jobs encolados, todo en una
+    // transacción Postgres. Si algo falla, no quedan campañas fantasma en
+    // QUEUED sin jobs (race que existía con la cola Redis/BullMQ).
+    const maxAttempts = this.env.WORKER_MAX_RETRIES + 1;
+    const now = new Date();
+    const launched = await this.prisma.$transaction(async (tx) => {
+      await tx.campaignDelivery.createMany({
+        data: campaign.list.members.map((m) => ({
+          campaignId: campaign.id,
+          contactId: m.contactId,
+          status: DeliveryStatus.PENDING,
+        })),
+        skipDuplicates: true,
+      });
 
-    const deliveries = await this.prisma.campaignDelivery.findMany({
-      where: { campaignId: campaign.id, status: DeliveryStatus.PENDING },
-      select: { id: true },
-    });
+      const deliveries = await tx.campaignDelivery.findMany({
+        where: { campaignId: campaign.id, status: DeliveryStatus.PENDING },
+        select: { id: true },
+      });
 
-    await this.prisma.campaign.update({
-      where: { id: campaign.id },
-      data: {
-        status: CampaignStatus.QUEUED,
-        launchedAt: new Date(),
-        totalRecipients: deliveries.length,
-      },
-    });
+      await tx.campaign.update({
+        where: { id: campaign.id },
+        data: {
+          status: CampaignStatus.QUEUED,
+          launchedAt: now,
+          totalRecipients: deliveries.length,
+        },
+      });
 
-    // Enqueue all deliveries; rate limiting is enforced at worker level.
-    const jobs = deliveries.map((d) => ({
-      name: 'campaign.send',
-      data: { deliveryId: d.id, campaignId: campaign.id, correlationId },
-      opts: {
-        attempts: this.env.WORKER_MAX_RETRIES + 1,
-        backoff: { type: 'exponential' as const, delay: this.env.WORKER_BACKOFF_MS },
-        removeOnComplete: { age: 3600, count: 5000 },
-        removeOnFail: { age: 24 * 3600 },
-      },
-    }));
-    if (jobs.length > 0) {
-      await this.campaignQueue.addBulk(jobs);
-    }
+      if (deliveries.length > 0) {
+        await tx.job.createMany({
+          data: deliveries.map((d) => ({
+            queue: this.campaignQueue.name,
+            payload: {
+              deliveryId: d.id,
+              campaignId: campaign.id,
+              correlationId,
+            } as Prisma.InputJsonValue,
+            maxAttempts,
+            nextRunAt: now,
+          })),
+        });
+      }
+
+      return { count: deliveries.length };
+    });
 
     this.logger.info(
-      { campaignId: campaign.id, count: deliveries.length, correlationId },
+      { campaignId: campaign.id, count: launched.count, correlationId },
       'campaign launched',
     );
-    return { id: campaign.id, queued: deliveries.length };
+    return { id: campaign.id, queued: launched.count };
   }
 
   async cancel(id: string, correlationId: string) {

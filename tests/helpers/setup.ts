@@ -19,6 +19,5 @@ process.env.LOG_LEVEL = process.env.LOG_LEVEL ?? 'silent';
 process.env.DATABASE_URL =
   process.env.DATABASE_URL ??
   'postgresql://test:test@localhost:55432/sms_gateway_test?schema=public';
-process.env.REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:56379';
 process.env.ADMIN_BOOTSTRAP_TOKEN = process.env.ADMIN_BOOTSTRAP_TOKEN ?? 'test-bootstrap-token';
 process.env.CORS_ORIGINS = process.env.CORS_ORIGINS ?? '';

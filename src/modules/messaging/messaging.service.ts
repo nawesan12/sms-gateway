@@ -1,4 +1,3 @@
-import type { Queue } from 'bullmq';
 import type { PrismaClient } from '@prisma/client';
 import type { AppEnv } from '@/config/env.js';
 import type { AppLogger } from '@/lib/logger-types.js';
@@ -7,6 +6,7 @@ import { AppError } from '@/plugins/error-handler.js';
 import { ERROR_CODES } from '@/config/constants.js';
 import type { SmsService } from '@/modules/sms/sms.service.js';
 import type { DeviceRouter } from '@/modules/sms/device-router.js';
+import type { PgQueue } from '@/queue/pg-queue.js';
 import type { SmsSendJob } from '@/queue/jobs/job.types.js';
 import type { TokensService } from '@/modules/tokens/tokens.service.js';
 
@@ -31,7 +31,7 @@ export class MessagingService {
     private readonly logger: AppLogger,
     private readonly smsService: SmsService,
     private readonly router: DeviceRouter,
-    private readonly smsQueue: Queue<SmsSendJob>,
+    private readonly smsQueue: PgQueue<SmsSendJob>,
     private readonly tokens: TokensService,
   ) {}
 
@@ -87,7 +87,6 @@ export class MessagingService {
 
     try {
       await this.smsQueue.add(
-        'sms.send',
         {
           smsMessageId: smsId,
           tokenTransactionId: reservation.transactionId,
@@ -95,12 +94,7 @@ export class MessagingService {
           message,
           correlationId: input.correlationId,
         },
-        {
-          attempts: this.env.WORKER_MAX_RETRIES + 1,
-          backoff: { type: 'exponential', delay: this.env.WORKER_BACKOFF_MS },
-          removeOnComplete: { age: 3600, count: 1000 },
-          removeOnFail: { age: 24 * 3600 },
-        },
+        { maxAttempts: this.env.WORKER_MAX_RETRIES + 1 },
       );
     } catch (err) {
       await this.tokens.refund(reservation.transactionId, 'enqueue_failed');

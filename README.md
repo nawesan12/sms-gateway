@@ -127,9 +127,7 @@ Todos los endpoints (excepto `/health*` y `/metrics`) requieren header `x-bootst
 ```bash
 docker compose -f docker-compose.test.yml up -d
 DATABASE_URL='postgresql://test:test@localhost:55432/sms_gateway_test' npx prisma db push
-DATABASE_URL='postgresql://test:test@localhost:55432/sms_gateway_test' \
-  REDIS_URL='redis://localhost:56379' \
-  npm test
+DATABASE_URL='postgresql://test:test@localhost:55432/sms_gateway_test' npm test
 ```
 
 ## Documentación complementaria

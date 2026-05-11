@@ -1,39 +1,23 @@
-import { Queue } from 'bullmq';
-import IORedis from 'ioredis';
-import type { AppEnv } from '@/config/env.js';
+import type { PrismaClient } from '@prisma/client';
 import { QUEUE_NAMES } from '@/config/constants.js';
+import { PgQueue } from './pg-queue.js';
 import type { CampaignSendJob, DeviceHealthJob, SmsSendJob } from './jobs/job.types.js';
 
-export function buildBullConnection(env: AppEnv): IORedis {
-  return new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
+// Después de migrar de BullMQ/Redis a Postgres, las queues son objetos
+// stateless: solo necesitan un PrismaClient. No hay client a cerrar.
+
+export function buildSmsQueue(prisma: PrismaClient): PgQueue<SmsSendJob> {
+  return new PgQueue<SmsSendJob>(prisma, QUEUE_NAMES.SMS_SEND);
 }
 
-export function buildSmsQueue(env: AppEnv): { queue: Queue<SmsSendJob>; client: IORedis } {
-  const client = buildBullConnection(env);
-  const queue = new Queue<SmsSendJob>(QUEUE_NAMES.SMS_SEND, { connection: client });
-  return { queue, client };
+export function buildDeviceHealthQueue(prisma: PrismaClient): PgQueue<DeviceHealthJob> {
+  return new PgQueue<DeviceHealthJob>(prisma, QUEUE_NAMES.DEVICE_HEALTH);
 }
 
-export function buildDeviceHealthQueue(env: AppEnv): {
-  queue: Queue<DeviceHealthJob>;
-  client: IORedis;
-} {
-  const client = buildBullConnection(env);
-  const queue = new Queue<DeviceHealthJob>(QUEUE_NAMES.DEVICE_HEALTH, { connection: client });
-  return { queue, client };
+export function buildDlqQueue(prisma: PrismaClient): PgQueue<SmsSendJob> {
+  return new PgQueue<SmsSendJob>(prisma, QUEUE_NAMES.SMS_DLQ);
 }
 
-export function buildDlqQueue(env: AppEnv): { queue: Queue<SmsSendJob>; client: IORedis } {
-  const client = buildBullConnection(env);
-  const queue = new Queue<SmsSendJob>(QUEUE_NAMES.SMS_DLQ, { connection: client });
-  return { queue, client };
-}
-
-export function buildCampaignQueue(env: AppEnv): {
-  queue: Queue<CampaignSendJob>;
-  client: IORedis;
-} {
-  const client = buildBullConnection(env);
-  const queue = new Queue<CampaignSendJob>(QUEUE_NAMES.CAMPAIGN_SEND, { connection: client });
-  return { queue, client };
+export function buildCampaignQueue(prisma: PrismaClient): PgQueue<CampaignSendJob> {
+  return new PgQueue<CampaignSendJob>(prisma, QUEUE_NAMES.CAMPAIGN_SEND);
 }

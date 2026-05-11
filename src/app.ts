@@ -5,7 +5,6 @@ import cors from '@fastify/cors';
 import { buildLoggerOptions } from './plugins/logger.js';
 import envPlugin from './plugins/env-plugin.js';
 import prismaPlugin from './plugins/prisma.js';
-import redisPlugin from './plugins/redis.js';
 import firebasePlugin from './plugins/firebase.js';
 import correlationIdPlugin from './plugins/correlation-id.js';
 import errorHandler from './plugins/error-handler.js';
@@ -26,6 +25,7 @@ import { registerCampaignsRoutes } from './modules/campaigns/campaigns.routes.js
 import { registerTokensRoutes } from './modules/tokens/tokens.routes.js';
 import { registerAuthRoutes } from './modules/auth/auth.routes.js';
 import { registerGatewayRoutes } from './modules/gateway/gateway.routes.js';
+import { registerDebugRoutes } from './modules/debug/debug.routes.js';
 import { loadEnv } from './config/env.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -65,7 +65,6 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(correlationIdPlugin);
   await app.register(errorHandler);
   await app.register(prismaPlugin);
-  await app.register(redisPlugin);
   await app.register(firebasePlugin);
   await app.register(rateLimitPlugin);
   await app.register(authJwt);
@@ -85,6 +84,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await registerAdminRoutes(instance);
     await registerTokensRoutes(instance);
     await registerGatewayRoutes(instance);
+    await registerDebugRoutes(instance);
   });
 
   // Static web UI (al final para que el SPA fallback no tape rutas API)

@@ -1,4 +1,3 @@
-import type Redis from 'ioredis';
 import type { AppEnv } from '@/config/env.js';
 import { SlidingWindow } from './sliding-window.js';
 
@@ -12,10 +11,10 @@ export class RateLimitService {
   private readonly window: SlidingWindow;
 
   constructor(
-    redis: Redis,
     private readonly env: AppEnv,
+    window?: SlidingWindow,
   ) {
-    this.window = new SlidingWindow(redis);
+    this.window = window ?? new SlidingWindow();
   }
 
   async checkPhoneDaily(phoneE164: string): Promise<RateCheck> {

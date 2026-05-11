@@ -1,9 +1,9 @@
 import type { FastifyInstance } from 'fastify';
-import IORedis from 'ioredis';
 import { FcmProvider } from '@/modules/sms/providers/fcm.provider.js';
 import { SmsService } from '@/modules/sms/sms.service.js';
 import { DeviceRouter } from '@/modules/sms/device-router.js';
 import { buildSmsQueue } from '@/queue/queues.js';
+import { RateLimitService } from '@/modules/ratelimit/rate-limit.service.js';
 import { AuthService } from './auth.service.js';
 import { AccessTokenService } from './access-token.service.js';
 import { AuthController } from './auth.controller.js';
@@ -25,32 +25,23 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   const provider = new FcmProvider(app.fcm, app.log);
   const router = DeviceRouter.create(app.prisma, env, app.log);
 
-  const { queue: smsQueue, client: smsQueueClient } = buildSmsQueue(env);
-  const rlClient = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
+  const smsQueue = buildSmsQueue(app.prisma);
+  const smsService = new SmsService(app.prisma, env, app.log, provider, router);
+  const rateLimit = new RateLimitService(env);
 
-  const smsService = new SmsService(app.prisma, env, app.log, provider, router, rlClient);
-
-  app.addHook('onClose', async () => {
-    await smsQueue.close();
-    await smsQueueClient.quit().catch(() => undefined);
-    await rlClient.quit().catch(() => undefined);
+  const service = new AuthService({
+    prisma: app.prisma,
+    env,
+    logger: app.log,
+    smsQueue,
+    smsService,
+    deviceRouter: router,
+    rateLimit,
+    signAccessToken: (payload) =>
+      app.jwt.sign(payload, { expiresIn: env.JWT_ACCESS_TTL_SEC }) as unknown as Promise<string>,
+    signRefreshToken: (payload) =>
+      app.jwt.sign(payload, { expiresIn: env.JWT_REFRESH_TTL_SEC }) as unknown as Promise<string>,
   });
-
-  const service = new AuthService(
-    {
-      prisma: app.prisma,
-      env,
-      logger: app.log,
-      smsQueue,
-      smsService,
-      deviceRouter: router,
-      signAccessToken: (payload) =>
-        app.jwt.sign(payload, { expiresIn: env.JWT_ACCESS_TTL_SEC }) as unknown as Promise<string>,
-      signRefreshToken: (payload) =>
-        app.jwt.sign(payload, { expiresIn: env.JWT_REFRESH_TTL_SEC }) as unknown as Promise<string>,
-    },
-    rlClient,
-  );
   const accessTokens = new AccessTokenService(app.prisma, env, app.log);
   const controller = new AuthController(service, accessTokens);
 

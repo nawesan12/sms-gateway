@@ -14,13 +14,7 @@ import {
 } from './campaigns.schemas.js';
 
 export async function registerCampaignsRoutes(app: FastifyInstance): Promise<void> {
-  const { queue: campaignQueue, client: campaignQueueClient } = buildCampaignQueue(app.env);
-
-  app.addHook('onClose', async () => {
-    await campaignQueue.close();
-    await campaignQueueClient.quit().catch(() => undefined);
-  });
-
+  const campaignQueue = buildCampaignQueue(app.prisma);
   const service = new CampaignsService(app.prisma, app.env, app.log, campaignQueue);
   const controller = new CampaignsController(service);
 

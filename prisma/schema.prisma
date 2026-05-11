@@ -126,6 +126,10 @@ model Device {
   circuitState      CircuitState @default(CLOSED)
   circuitOpenedAt   DateTime?
   minDelayBetweenMs Int          @default(0)
+  // Cooldown lock entre envíos consecutivos al mismo device. Si está en el
+  // futuro, el router skipea este device hasta que pase. Reemplazo del lock
+  // distribuido en Redis (SET NX PX) por una columna versionada en Postgres.
+  cooldownUntil     DateTime?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   smsMessages       SmsMessage[]
@@ -349,4 +353,42 @@ enum TokenTransactionStatus {
   RESERVED
   COMMITTED
   REFUNDED
+}
+
+// =============================================================================
+// JOB QUEUE — reemplazo de BullMQ/Redis con polling en Postgres.
+//
+// Un único proceso Node atiende todo el laburo, así que no necesitamos
+// distributed queue: bastan una tabla, FOR UPDATE SKIP LOCKED y polling.
+// =============================================================================
+model Job {
+  id          String    @id @default(uuid())
+  // 'sms.send' | 'campaign.send' | 'device.health' | 'sms.dlq'
+  queue       String
+  // Payload serializado. Cada worker conoce la forma para su queue.
+  payload     Json
+  status      JobStatus @default(PENDING)
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(4)
+  // Cuándo puede correrse próximamente. Para retries con backoff
+  // exponencial el worker setea nextRunAt = now + delay.
+  nextRunAt   DateTime  @default(now())
+  // Filtra el SKIP LOCKED: solo el worker que tomó el job lo ve corriendo.
+  lockedAt    DateTime?
+  lockedBy    String?
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([queue, status, nextRunAt])
+  @@index([status, updatedAt])
+  @@map("jobs")
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  DEAD
 }

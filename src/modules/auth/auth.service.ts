@@ -1,9 +1,8 @@
 import type { PrismaClient } from '@prisma/client';
-import type IORedis from 'ioredis';
 import type { AppLogger } from '@/lib/logger-types.js';
-import type { Queue } from 'bullmq';
+import type { PgQueue } from '@/queue/pg-queue.js';
 import { OtpService } from '@/modules/otp/otp.service.js';
-import { RateLimitService } from '@/modules/ratelimit/rate-limit.service.js';
+import type { RateLimitService } from '@/modules/ratelimit/rate-limit.service.js';
 import { AbuseService } from '@/modules/abuse/abuse.service.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { UserService } from '@/modules/users/user.service.js';
@@ -58,9 +57,10 @@ export interface AuthDeps {
   prisma: PrismaClient;
   env: AppEnv;
   logger: AppLogger;
-  smsQueue: Queue<SmsSendJob>;
+  smsQueue: PgQueue<SmsSendJob>;
   smsService: SmsService;
   deviceRouter: DeviceRouter;
+  rateLimit: RateLimitService;
   signAccessToken: (payload: {
     sub: string;
     phone: string;
@@ -80,12 +80,9 @@ export class AuthService {
   private readonly audit: AuditService;
   private readonly users: UserService;
 
-  constructor(
-    private readonly deps: AuthDeps,
-    redisRateLimitClient: IORedis,
-  ) {
+  constructor(private readonly deps: AuthDeps) {
     this.otp = new OtpService(deps.prisma, deps.env, deps.logger);
-    this.rate = new RateLimitService(redisRateLimitClient, deps.env);
+    this.rate = deps.rateLimit;
     this.abuse = new AbuseService(deps.prisma, deps.logger);
     this.audit = new AuditService(deps.prisma, deps.logger);
     this.users = new UserService(deps.prisma);
@@ -157,7 +154,6 @@ export class AuthService {
     });
 
     await this.deps.smsQueue.add(
-      'sms.send',
       {
         smsMessageId: smsId,
         otpRequestId: otp.requestId,
@@ -165,12 +161,7 @@ export class AuthService {
         message,
         correlationId: input.correlationId,
       },
-      {
-        attempts: this.deps.env.WORKER_MAX_RETRIES + 1,
-        backoff: { type: 'exponential', delay: this.deps.env.WORKER_BACKOFF_MS },
-        removeOnComplete: { age: 3600, count: 1000 },
-        removeOnFail: { age: 24 * 3600 },
-      },
+      { maxAttempts: this.deps.env.WORKER_MAX_RETRIES + 1 },
     );
 
     metrics.otpSent.labels({ result: 'queued' }).inc();

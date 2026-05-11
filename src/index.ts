@@ -33,7 +33,7 @@ async function main(): Promise<void> {
   // inactividad, los workers también — usar un keepalive externo para evitarlo.
   const workerLogger = app.log.child({ scope: 'workers' });
   const smsHandle = startSmsSendWorker(env, workerLogger.child({ component: 'sms-worker' }));
-  const healthHandle = await startDeviceHealthWorker(
+  const healthHandle = startDeviceHealthWorker(
     env,
     workerLogger.child({ component: 'health-worker' }),
   );

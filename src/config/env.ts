@@ -16,11 +16,10 @@ const envSchema = z
     HOST: z.string().default('0.0.0.0'),
 
     DATABASE_URL: z.string().url(),
-    REDIS_URL: z.string().url(),
 
     // ⚠️ CLAVES DIDÁCTICAS — defaults para que el deploy en Render free funcione
-    // ingresando solo DATABASE_URL + REDIS_URL. En un deploy real, sobreescribir
-    // las cuatro env vars de abajo con valores propios y nunca versionarlas.
+    // ingresando solo DATABASE_URL. En un deploy real, sobreescribir las cuatro
+    // env vars de abajo con valores propios y nunca versionarlas.
     JWT_PRIVATE_KEY_B64: z
       .string()
       .min(1)
@@ -149,14 +148,6 @@ function preflightWarnings(env: AppEnv): string[] {
       warnings.push(
         'DATABASE_URL apunta a Supabase sin ?pgbouncer=true. `prisma db push` ' +
           'y prepared statements pueden fallar contra el pooler en transaction mode.',
-      );
-    }
-
-    // REDIS_URL: Upstash exige TLS (rediss://). redis:// va a fallar handshake.
-    if (env.REDIS_URL.startsWith('redis://') && /upstash\.io/.test(env.REDIS_URL)) {
-      warnings.push(
-        'REDIS_URL apunta a Upstash con redis:// (sin TLS). Upstash requiere ' +
-          'TLS — usar la "TLS connection string" que empieza con rediss://.',
       );
     }
   }

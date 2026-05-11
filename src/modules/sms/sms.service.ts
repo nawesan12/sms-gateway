@@ -1,5 +1,4 @@
 import { SmsStatus, type PrismaClient, type Device } from '@prisma/client';
-import type IORedis from 'ioredis';
 import type { AppEnv } from '@/config/env.js';
 import type { AppLogger } from '@/lib/logger-types.js';
 import { metrics } from '@/plugins/metrics.js';
@@ -32,7 +31,6 @@ export class SmsService {
     private readonly logger: AppLogger,
     private readonly provider: SmsProvider,
     private readonly router: DeviceRouter,
-    private readonly redis: IORedis | null = null,
   ) {
     this.repo = new SmsRepository(prisma);
   }
@@ -49,6 +47,22 @@ export class SmsService {
       otpRequestId: args.otpRequestId ?? null,
     });
     return sms.id;
+  }
+
+  // Atomic cooldown lock en Postgres. Setea Device.cooldownUntil = now + ms
+  // solo si está vencido (o null). Reemplazo del SET NX PX que antes hacíamos
+  // en Redis. Atomicidad garantizada por updateMany() con WHERE compuesto.
+  private async tryAcquireCooldown(deviceId: string, ms: number): Promise<boolean> {
+    const now = new Date();
+    const until = new Date(now.getTime() + ms);
+    const updated = await this.prisma.device.updateMany({
+      where: {
+        id: deviceId,
+        OR: [{ cooldownUntil: null }, { cooldownUntil: { lte: now } }],
+      },
+      data: { cooldownUntil: until },
+    });
+    return updated.count === 1;
   }
 
   async dispatch(input: DispatchInput): Promise<DispatchOutput> {
@@ -70,19 +84,11 @@ export class SmsService {
         candidate = await this.router.select(excludeArr);
       }
 
-      // Cooldown lock: si el device tiene minDelayBetweenMs > 0, intentar
-      // tomar un lock distribuido en Redis con TTL = minDelayBetweenMs.
-      // Si ya está tomado, ese device está en cooldown — probar otro.
-      if (this.redis && candidate.minDelayBetweenMs > 0) {
-        const lockKey = `sms:device:${candidate.id}:cooldown`;
-        const acquired = await this.redis.set(
-          lockKey,
-          '1',
-          'PX',
-          candidate.minDelayBetweenMs,
-          'NX',
-        );
-        if (acquired === null) {
+      // Cooldown: si el device exige minDelay entre envíos, intentar tomar
+      // el lock atómico en Postgres (UPDATE … WHERE cooldownUntil expirado).
+      if (candidate.minDelayBetweenMs > 0) {
+        const acquired = await this.tryAcquireCooldown(candidate.id, candidate.minDelayBetweenMs);
+        if (!acquired) {
           this.logger.debug(
             { deviceId: candidate.id, minDelayBetweenMs: candidate.minDelayBetweenMs },
             'device in cooldown, trying next',

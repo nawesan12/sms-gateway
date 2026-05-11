@@ -1,5 +1,3 @@
-import { Worker, type Job } from 'bullmq';
-import IORedis from 'ioredis';
 import { CampaignStatus, DeliveryStatus, PrismaClient } from '@prisma/client';
 import type { AppEnv } from '@/config/env.js';
 import type { AppLogger } from '@/lib/logger-types.js';
@@ -11,12 +9,18 @@ import { initFcmFromEnv } from '@/lib/fcm-init.js';
 import { TokensService } from '@/modules/tokens/tokens.service.js';
 import { AuditService } from '@/modules/audit/audit.service.js';
 import { renderTemplate } from '@/lib/template.js';
+import { PgWorker } from '../pg-worker.js';
 import type { CampaignSendJob } from '../jobs/job.types.js';
 
 export interface CampaignWorkerHandle {
-  worker: Worker<CampaignSendJob>;
+  worker: PgWorker<CampaignSendJob>;
   shutdown: () => Promise<void>;
 }
+
+// Errores de FCM que jamás se van a recuperar reintentando: el problema es
+// configuración (env var ausente) o estado del device (sin token). Pausar
+// la campaña entera evita gastar tokens en envíos imposibles.
+const FATAL_FCM_CODES = new Set(['NO_FCM_CONFIG', 'NO_FCM_TOKEN']);
 
 export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): CampaignWorkerHandle {
   const prisma = new PrismaClient();
@@ -25,13 +29,12 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
   const router = DeviceRouter.create(prisma, env, logger);
   const tokens = new TokensService(prisma, logger);
   const audit = new AuditService(prisma, logger);
+  const sms = new SmsService(prisma, env, logger, provider, router);
 
-  const connectionClient = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
-  const sms = new SmsService(prisma, env, logger, provider, router, connectionClient);
-
-  const worker = new Worker<CampaignSendJob>(
+  const worker = new PgWorker<CampaignSendJob>(
+    prisma,
     QUEUE_NAMES.CAMPAIGN_SEND,
-    async (job: Job<CampaignSendJob>) => {
+    async (job) => {
       const { deliveryId, campaignId, correlationId } = job.data;
       const childLog = logger.child({ jobId: job.id, deliveryId, campaignId, correlationId });
 
@@ -41,11 +44,11 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
       });
       if (!delivery) {
         childLog.warn('delivery not found, skipping');
-        return { ok: false };
+        return;
       }
       if (delivery.status !== DeliveryStatus.PENDING) {
         childLog.debug({ status: delivery.status }, 'delivery already processed');
-        return { ok: false };
+        return;
       }
       if (
         delivery.campaign.status === CampaignStatus.CANCELED ||
@@ -55,7 +58,7 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
           where: { id: deliveryId },
           data: { status: DeliveryStatus.SKIPPED },
         });
-        return { ok: false };
+        return;
       }
 
       // Transition campaign to RUNNING on first delivery
@@ -89,7 +92,7 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
             data: { failedCount: { increment: 1 }, status: CampaignStatus.FAILED },
           }),
         ]);
-        return { ok: false };
+        return;
       }
 
       try {
@@ -139,7 +142,7 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
             { ownerUserId, balance: reservation.balance },
             'campaign paused: insufficient tokens',
           );
-          return { ok: false };
+          return;
         }
 
         await prisma.smsMessage.update({
@@ -176,6 +179,11 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
             result.errorCode ?? 'UNKNOWN',
             result.errorMessage ?? 'send failed',
           );
+
+          // Si el error es fatal del lado FCM (env var sin setear, device sin
+          // token), no tiene sentido seguir procesando deliveries de esta
+          // campaña — pausamos para que el operador arregle el problema.
+          const fatal = result.errorCode && FATAL_FCM_CODES.has(result.errorCode);
           await prisma.$transaction([
             prisma.campaignDelivery.update({
               where: { id: deliveryId },
@@ -188,9 +196,31 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
             }),
             prisma.campaign.update({
               where: { id: campaignId },
-              data: { failedCount: { increment: 1 } },
+              data: {
+                failedCount: { increment: 1 },
+                ...(fatal ? { status: CampaignStatus.PAUSED } : {}),
+              },
             }),
           ]);
+          if (fatal) {
+            await audit.record({
+              eventType: AUDIT_EVENTS.CAMPAIGN_PAUSED_INSUFFICIENT_TOKENS,
+              actorType: 'system',
+              actorId: ownerUserId,
+              targetType: 'campaign',
+              targetId: campaignId,
+              correlationId,
+              metadata: {
+                reason: 'fcm_fatal',
+                errorCode: result.errorCode,
+                errorMessage: result.errorMessage,
+              },
+            });
+            childLog.error(
+              { errorCode: result.errorCode, errorMessage: result.errorMessage },
+              'campaign paused: fatal FCM error — fix backend config and resume',
+            );
+          }
         }
       } catch (err) {
         childLog.warn({ err }, 'campaign delivery dispatch error');
@@ -215,35 +245,31 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
         where: { campaignId, status: DeliveryStatus.PENDING },
       });
       if (remaining === 0) {
-        await prisma.campaign.update({
-          where: { id: campaignId },
+        // Solo transicionar a COMPLETED si todavía está corriendo (puede haber
+        // ido a PAUSED por insufficient tokens o por fatal FCM, en ese caso
+        // queremos respetar ese estado).
+        await prisma.campaign.updateMany({
+          where: { id: campaignId, status: CampaignStatus.RUNNING },
           data: { status: CampaignStatus.COMPLETED, completedAt: new Date() },
         });
         childLog.info('campaign completed');
       }
-
-      return { ok: true };
     },
+    logger,
     {
-      connection: connectionClient,
       concurrency: env.WORKER_CONCURRENCY,
-      // Conservative global rate limiter: respect average TPS across all campaigns.
-      // Per-campaign tpsLimit is informative; tighter limits would require
-      // multiple queues. For MVP: max 5 SMS/sec global.
-      limiter: { max: 5, duration: 1000 },
+      backoffMs: env.WORKER_BACKOFF_MS,
+      // Conservative global rate limiter: 5 SMS/sec across todas las campañas.
+      limiter: { max: 5, durationMs: 1000 },
     },
   );
 
-  worker.on('failed', (job, err) => {
-    if (!job) return;
-    logger.warn({ jobId: job.id, err: err.message }, 'campaign-send job failed');
-  });
+  worker.start();
 
   return {
     worker,
     shutdown: async () => {
-      await worker.close();
-      await connectionClient.quit().catch(() => undefined);
+      await worker.stop();
       await prisma.$disconnect();
     },
   };

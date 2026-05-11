@@ -6,7 +6,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
   app.get('/health/ready', async (_req, reply) => {
     const checks: Record<string, 'ok' | 'fail'> = {
       postgres: 'fail',
-      redis: 'fail',
+      fcm: 'fail',
       devices: 'fail',
     };
 
@@ -16,12 +16,7 @@ export async function registerHealthRoutes(app: FastifyInstance): Promise<void> 
     } catch {
       // ignore
     }
-    try {
-      const pong = await app.redis.ping();
-      if (pong === 'PONG') checks.redis = 'ok';
-    } catch {
-      // ignore
-    }
+    checks.fcm = app.fcm ? 'ok' : 'fail';
     try {
       const count = await app.prisma.device.count({ where: { status: 'ACTIVE' } });
       checks.devices = count > 0 ? 'ok' : 'fail';

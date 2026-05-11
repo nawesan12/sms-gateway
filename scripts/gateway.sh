@@ -249,20 +249,20 @@ cmd_doctor() {
   echo "  $(echo "$health" | jq -c .)"
   echo
 
-  # 2. /health/ready (toca DB + Redis + devices)
-  echo "→ /health/ready (DB + Redis + devices)"
+  # 2. /health/ready (toca DB + FCM + devices)
+  echo "→ /health/ready (DB + FCM + devices)"
   local ready
   ready=$(curl -sS --max-time 30 "$API_URL/health/ready" || echo '{}')
   local pg=$(echo "$ready" | jq -r '.checks.postgres // "?"')
-  local rd=$(echo "$ready" | jq -r '.checks.redis // "?"')
+  local fc=$(echo "$ready" | jq -r '.checks.fcm // "?"')
   local dv=$(echo "$ready" | jq -r '.checks.devices // "?"')
 
   if [ "$pg" = "ok" ]; then green "  ✓ postgres: ok"
   else red "  ✗ postgres: $pg — revisá DATABASE_URL (¿pegaste el pooler en :6543?)"
   fi
 
-  if [ "$rd" = "ok" ]; then green "  ✓ redis: ok"
-  else red "  ✗ redis: $rd — revisá REDIS_URL (¿empieza con rediss:// para Upstash?)"
+  if [ "$fc" = "ok" ]; then green "  ✓ fcm: configurado"
+  else red "  ✗ fcm: $fc — falta FIREBASE_SERVICE_ACCOUNT_JSON en el dashboard de Render"
   fi
 
   if [ "$dv" = "ok" ]; then green "  ✓ devices: hay al menos 1 device ACTIVO"
@@ -282,7 +282,7 @@ cmd_doctor() {
   esac
   echo
 
-  if [ "$pg" = "ok" ] && [ "$rd" = "ok" ] && [ "$auth_status" = "200" ]; then
+  if [ "$pg" = "ok" ] && [ "$fc" = "ok" ] && [ "$auth_status" = "200" ]; then
     green "Todo OK. Listo para crear clientes."
   else
     red "Hay items en rojo. Mirá los logs del service en Render dashboard."

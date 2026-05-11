@@ -17,14 +17,9 @@ export async function registerMessagingRoutes(app: FastifyInstance): Promise<voi
   const env = app.env;
   const provider = new FcmProvider(app.fcm, app.log);
   const router = DeviceRouter.create(app.prisma, env, app.log);
-  const smsService = new SmsService(app.prisma, env, app.log, provider, router, app.redis);
+  const smsService = new SmsService(app.prisma, env, app.log, provider, router);
   const tokens = new TokensService(app.prisma, app.log);
-  const { queue: smsQueue, client: smsQueueClient } = buildSmsQueue(env);
-
-  app.addHook('onClose', async () => {
-    await smsQueue.close();
-    await smsQueueClient.quit().catch(() => undefined);
-  });
+  const smsQueue = buildSmsQueue(app.prisma);
 
   const service = new MessagingService(
     app.prisma,
