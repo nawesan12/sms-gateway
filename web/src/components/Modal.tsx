@@ -24,7 +24,7 @@ export function Modal({ open, onClose, title, eyebrow, children, footer, size = 
       onClick={onClose}
     >
       <div
-        className={`surface w-full ${SIZE[size]} max-h-[90vh] flex flex-col`}
+        className={`bg-canvas-overlay border border-line-strong shadow-2xl w-full ${SIZE[size]} max-h-[90vh] flex flex-col`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between border-b border-line px-5 py-4">
