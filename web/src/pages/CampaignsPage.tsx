@@ -13,7 +13,12 @@ import { EmptyState } from '@/components/EmptyState';
 export function CampaignsPage() {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: '', messageTemplate: '', listId: '', tpsLimit: 1 });
+  const [form, setForm] = useState({
+    name: '',
+    messageTemplate: '',
+    listId: '',
+    messagesPerHour: 100,
+  });
 
   const list = useQuery({
     queryKey: ['campaigns'],
@@ -27,13 +32,14 @@ export function CampaignsPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['campaigns'] });
       setShowCreate(false);
-      setForm({ name: '', messageTemplate: '', listId: '', tpsLimit: 1 });
+      setForm({ name: '', messageTemplate: '', listId: '', messagesPerHour: 100 });
     },
   });
 
   const launch = useMutation({
     mutationFn: (id: string) => campaignsApi.launch(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['campaigns'] }),
+    onError: (err: Error) => alert(`No se pudo lanzar: ${err.message}`),
   });
 
   return (
@@ -124,7 +130,7 @@ export function CampaignsPage() {
                   name: form.name,
                   messageTemplate: form.messageTemplate,
                   listId: form.listId,
-                  tpsLimit: form.tpsLimit,
+                  messagesPerHour: form.messagesPerHour,
                 })
               }
             >
@@ -166,13 +172,14 @@ export function CampaignsPage() {
             className="font-mono"
           />
           <Input
-            label="TPS · SMS por segundo"
+            label="Ritmo · mensajes por hora"
             type="number"
             min={1}
-            max={50}
-            value={form.tpsLimit}
-            onChange={(e) => setForm({ ...form, tpsLimit: Number(e.target.value) })}
-            hint="default 1/s · evita quemar la SIM y parecer spam"
+            value={form.messagesPerHour}
+            onChange={(e) =>
+              setForm({ ...form, messagesPerHour: Math.max(1, Number(e.target.value) || 1) })
+            }
+            hint="default 100/hora · ≈ 1 mensaje cada 36 segundos, evita parecer spam"
           />
           {create.isError && (
             <p className="text-2xs font-mono text-signal-err">{(create.error as Error).message}</p>

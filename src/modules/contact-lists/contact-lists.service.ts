@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import { AppError } from '@/plugins/error-handler.js';
 import { ERROR_CODES } from '@/config/constants.js';
 
@@ -10,6 +10,20 @@ export interface CreateListInput {
 export interface UpdateListInput {
   name?: string;
   description?: string | null;
+}
+
+export interface BulkAddFromSearchInput {
+  search?: string;
+  limit: number;
+  dryRun?: boolean;
+  onlyWithoutList?: boolean;
+}
+
+export interface BulkAddFromSearchResult {
+  added: number;
+  matched: number;
+  requested: number;
+  dryRun: boolean;
 }
 
 export class ContactListsService {
@@ -86,6 +100,17 @@ export class ContactListsService {
 
   async delete(id: string) {
     await this.assertExists(id);
+    // Campaign.list tiene FK Restrict: si hay campañas asociadas, Prisma rompe
+    // con P2003 y desde el front no se ve el error. Pre-chequeo para devolver
+    // 409 claro. Los members tienen Cascade en el schema, no hay que tocarlos.
+    const campaigns = await this.prisma.campaign.count({ where: { listId: id } });
+    if (campaigns > 0) {
+      throw new AppError(
+        ERROR_CODES.VALIDATION,
+        `No se puede borrar: la lista tiene ${campaigns} campaña${campaigns === 1 ? '' : 's'} asociada${campaigns === 1 ? '' : 's'}. Borrá primero las campañas.`,
+        409,
+      );
+    }
     await this.prisma.contactList.delete({ where: { id } });
   }
 
@@ -105,6 +130,61 @@ export class ContactListsService {
       skipDuplicates: true,
     });
     return { added: result.count };
+  }
+
+  async bulkAddFromSearch(
+    listId: string,
+    input: BulkAddFromSearchInput,
+  ): Promise<BulkAddFromSearchResult> {
+    await this.assertExists(listId);
+
+    const search = input.search?.trim();
+    const searchWhere: Prisma.ContactWhereInput = search
+      ? {
+          OR: [
+            { phoneE164: { contains: search } },
+            { name: { contains: search, mode: 'insensitive' } },
+            { email: { contains: search, mode: 'insensitive' } },
+          ],
+        }
+      : {};
+
+    // Tomamos solo contactos activos. Si `onlyWithoutList` es true, filtramos
+    // por contactos que no pertenezcan a NINGUNA lista. Si no, filtramos por
+    // los que no estén en ESTA lista. Ambos casos usan NOT EXISTS en SQL.
+    const candidates = await this.prisma.contact.findMany({
+      where: {
+        isActive: true,
+        ...searchWhere,
+        lists: input.onlyWithoutList ? { none: {} } : { none: { listId } },
+      },
+      select: { id: true },
+      orderBy: { createdAt: 'desc' },
+      take: input.limit,
+    });
+
+    if (input.dryRun || candidates.length === 0) {
+      return {
+        added: 0,
+        matched: candidates.length,
+        requested: input.limit,
+        dryRun: input.dryRun ?? false,
+      };
+    }
+
+    // skipDuplicates cubre la race condition: si otro request agregó el mismo
+    // contacto entre el SELECT y el INSERT, ON CONFLICT lo ignora.
+    const result = await this.prisma.contactListMember.createMany({
+      data: candidates.map((c) => ({ listId, contactId: c.id })),
+      skipDuplicates: true,
+    });
+
+    return {
+      added: result.count,
+      matched: candidates.length,
+      requested: input.limit,
+      dryRun: false,
+    };
   }
 
   async removeMember(listId: string, contactId: string) {

@@ -7,10 +7,12 @@ import {
   CampaignIdParam,
   CreateCampaignBody,
   ListCampaignsQuery,
+  UpdateCampaignBody,
   type CampaignDeliveriesQueryT,
   type CampaignIdParamT,
   type CreateCampaignBodyT,
   type ListCampaignsQueryT,
+  type UpdateCampaignBodyT,
 } from './campaigns.schemas.js';
 
 export async function registerCampaignsRoutes(app: FastifyInstance): Promise<void> {
@@ -83,5 +85,19 @@ export async function registerCampaignsRoutes(app: FastifyInstance): Promise<voi
       schema: { params: CampaignIdParam, tags: ['campaigns'], security: [{ bearerAuth: [] }] },
     },
     controller.cancel,
+  );
+
+  app.patch<{ Params: CampaignIdParamT; Body: UpdateCampaignBodyT }>(
+    '/v1/campaigns/:id',
+    {
+      preHandler: app.requireAdmin,
+      schema: {
+        params: CampaignIdParam,
+        body: UpdateCampaignBody,
+        tags: ['campaigns'],
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    controller.update,
   );
 }

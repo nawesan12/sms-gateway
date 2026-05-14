@@ -4,6 +4,7 @@ import { seedAdminIfMissing } from './bootstrap/seed-admin.js';
 import { startSmsSendWorker } from './queue/workers/sms-send.worker.js';
 import { startDeviceHealthWorker } from './queue/workers/device-health.worker.js';
 import { startCampaignSendWorker } from './queue/workers/campaign-send.worker.js';
+import { startCampaignWatchdog } from './queue/workers/campaign-watchdog.worker.js';
 
 async function main(): Promise<void> {
   const app = await buildApp();
@@ -41,11 +42,20 @@ async function main(): Promise<void> {
     env,
     workerLogger.child({ component: 'campaign-worker' }),
   );
+  const watchdogHandle = startCampaignWatchdog(
+    env,
+    workerLogger.child({ component: 'campaign-watchdog' }),
+  );
 
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, 'shutting down API + workers');
     try {
-      await Promise.all([smsHandle.shutdown(), healthHandle.shutdown(), campaignHandle.shutdown()]);
+      await Promise.all([
+        smsHandle.shutdown(),
+        healthHandle.shutdown(),
+        campaignHandle.shutdown(),
+        watchdogHandle.shutdown(),
+      ]);
       await app.close();
       process.exit(0);
     } catch (err) {

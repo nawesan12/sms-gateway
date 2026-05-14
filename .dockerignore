@@ -1,0 +1,77 @@
+# Lo único que necesita el builder está en package.json, prisma/, src/, web/dist
+# Todo lo demás afuera para mantener el contexto chico y evitar fugas.
+
+# Dependencies (se reinstalan dentro del builder)
+node_modules
+web/node_modules
+
+# Build artifacts locales del backend (los rehace el builder)
+# OJO: usar /dist anclado al root para no matchear web/dist (que sí necesitamos copiar)
+/dist
+*.tsbuildinfo
+
+# Tests y dev tooling
+tests
+coverage
+.vitest
+vitest.config.ts
+.eslintrc.cjs
+eslint.config.js
+.prettierrc.json
+.prettierignore
+
+# Secrets — nunca al build context
+.env
+.env.*
+!.env.example
+scripts/gateway.env
+scripts/deploy/accounts.json
+
+# Git y editor
+.git
+.gitignore
+.gitattributes
+.idea
+.vscode
+.DS_Store
+
+# Docs e imágenes del README (no aportan al runtime)
+README.md
+DEPLOY.md
+docs
+*.png
+*.jpg
+*.jpeg
+*.gif
+campaigns-redesign.png
+dashboard-redesign.png
+login-redesign.png
+send-redesign.png
+
+# Frontend sources — solo se copia web/dist ya buildeado
+web/src
+web/index.html
+web/postcss.config.js
+web/tailwind.config.js
+web/tsconfig.json
+web/vite.config.ts
+web/package.json
+web/package-lock.json
+
+# CI y misc
+.github
+.claude
+.playwright-mcp
+
+# Logs
+*.log
+npm-debug.log*
+
+# DB local
+prisma/dev.db
+prisma/migrations/dev
+
+# Dockerfile y compose mismos
+Dockerfile
+.dockerignore
+docker-compose*.yml

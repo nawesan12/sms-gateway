@@ -23,3 +23,9 @@ export const ImportCsvBody = Type.Object({
   csv: Type.String({ minLength: 1 }),
 });
 export type ImportCsvBodyT = Static<typeof ImportCsvBody>;
+
+export const BulkCreateContactsBody = Type.Object({
+  phones: Type.Array(Type.String({ minLength: 1, maxLength: 32 }), { minItems: 1 }),
+  defaultName: Type.Optional(Type.String({ maxLength: 200 })),
+});
+export type BulkCreateContactsBodyT = Static<typeof BulkCreateContactsBody>;

@@ -26,6 +26,11 @@ export function ListsPage() {
   const remove = useMutation({
     mutationFn: (id: string) => listsApi.remove(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['lists'] }),
+    onError: (err: Error) => {
+      // 409 si la lista tiene campañas asociadas. Mostramos el mensaje del
+      // backend en vez de fallar mudo.
+      alert(`No se pudo borrar: ${err.message}`);
+    },
   });
 
   return (

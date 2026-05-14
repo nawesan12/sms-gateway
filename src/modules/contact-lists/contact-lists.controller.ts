@@ -2,6 +2,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ContactListsService } from './contact-lists.service.js';
 import type {
   AddMembersBodyT,
+  BulkAddMembersBodyT,
   CreateListBodyT,
   ListIdParamT,
   ListMemberParamT,
@@ -73,6 +74,19 @@ export class ContactListsController {
     reply: FastifyReply,
   ): Promise<void> => {
     const out = await this.service.addMembers(req.params.id, req.body.contactIds);
+    reply.send({ success: true, data: out, error: null, meta: meta(req) });
+  };
+
+  bulkAddFromSearch = async (
+    req: FastifyRequest<{ Params: ListIdParamT; Body: BulkAddMembersBodyT }>,
+    reply: FastifyReply,
+  ): Promise<void> => {
+    const out = await this.service.bulkAddFromSearch(req.params.id, {
+      search: req.body.search,
+      limit: req.body.limit,
+      dryRun: req.body.dryRun,
+      onlyWithoutList: req.body.onlyWithoutList,
+    });
     reply.send({ success: true, data: out, error: null, meta: meta(req) });
   };
 

@@ -24,6 +24,19 @@ export const listsApi = {
       method: 'POST',
       body: JSON.stringify({ contactIds }),
     }),
+  bulkAddFromSearch: (
+    id: string,
+    input: {
+      search?: string;
+      limit: number;
+      dryRun?: boolean;
+      onlyWithoutList?: boolean;
+    },
+  ) =>
+    apiFetch<{ added: number; matched: number; requested: number; dryRun: boolean }>(
+      `/v1/contact-lists/${id}/members/bulk`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ),
   removeMember: (id: string, contactId: string) =>
     apiFetch<void>(`/v1/contact-lists/${id}/members/${contactId}`, { method: 'DELETE' }),
 };

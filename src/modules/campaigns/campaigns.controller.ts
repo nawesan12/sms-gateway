@@ -8,6 +8,7 @@ import type {
   CampaignIdParamT,
   CreateCampaignBodyT,
   ListCampaignsQueryT,
+  UpdateCampaignBodyT,
 } from './campaigns.schemas.js';
 
 export class CampaignsController {
@@ -43,6 +44,7 @@ export class CampaignsController {
         listId: req.body.listId,
         ownerUserId: req.authUser.id,
         tpsLimit: req.body.tpsLimit,
+        messagesPerHour: req.body.messagesPerHour,
       },
       req.correlationId,
     );
@@ -82,6 +84,14 @@ export class CampaignsController {
   ): Promise<void> => {
     await this.service.cancel(req.params.id, req.correlationId);
     reply.send({ success: true, data: { canceled: true }, error: null, meta: meta(req) });
+  };
+
+  update = async (
+    req: FastifyRequest<{ Params: CampaignIdParamT; Body: UpdateCampaignBodyT }>,
+    reply: FastifyReply,
+  ): Promise<void> => {
+    const out = await this.service.update(req.params.id, req.body);
+    reply.send({ success: true, data: out, error: null, meta: meta(req) });
   };
 }
 

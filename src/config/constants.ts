@@ -40,6 +40,7 @@ export const AUDIT_EVENTS = {
   TOKEN_REFUNDED: 'token.refunded',
   TOKEN_INSUFFICIENT: 'token.insufficient',
   CAMPAIGN_PAUSED_INSUFFICIENT_TOKENS: 'campaign.paused.insufficient_tokens',
+  CAMPAIGN_PAUSED_FCM_FATAL: 'campaign.paused.fcm_fatal',
   ACCESS_TOKEN_ISSUED: 'access_token.issued',
   ACCESS_TOKEN_USED: 'access_token.used',
 } as const;

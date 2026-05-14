@@ -5,6 +5,7 @@ export const CreateCampaignBody = Type.Object({
   messageTemplate: Type.String({ minLength: 1, maxLength: 1600 }),
   listId: Type.String({ format: 'uuid' }),
   tpsLimit: Type.Optional(Type.Integer({ minimum: 1, maximum: 50 })),
+  messagesPerHour: Type.Optional(Type.Integer({ minimum: 1 })),
 });
 export type CreateCampaignBodyT = Static<typeof CreateCampaignBody>;
 
@@ -27,6 +28,13 @@ export type ListCampaignsQueryT = Static<typeof ListCampaignsQuery>;
 
 export const CampaignIdParam = Type.Object({ id: Type.String({ format: 'uuid' }) });
 export type CampaignIdParamT = Static<typeof CampaignIdParam>;
+
+export const UpdateCampaignBody = Type.Object({
+  name: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+  messageTemplate: Type.Optional(Type.String({ minLength: 1, maxLength: 1600 })),
+  messagesPerHour: Type.Optional(Type.Integer({ minimum: 1 })),
+});
+export type UpdateCampaignBodyT = Static<typeof UpdateCampaignBody>;
 
 export const CampaignDeliveriesQuery = Type.Object({
   page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),

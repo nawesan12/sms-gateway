@@ -15,9 +15,18 @@ export const campaignsApi = {
     messageTemplate: string;
     listId: string;
     tpsLimit?: number;
+    messagesPerHour?: number;
   }) =>
     apiFetch<CampaignSummary>('/v1/campaigns', { method: 'POST', body: JSON.stringify(input) }),
   getById: (id: string) => apiFetch<CampaignDetail>(`/v1/campaigns/${id}`),
+  update: (
+    id: string,
+    input: { name?: string; messageTemplate?: string; messagesPerHour?: number },
+  ) =>
+    apiFetch<CampaignSummary>(`/v1/campaigns/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
   deliveries: (id: string, params: { page?: number; pageSize?: number } = {}) => {
     const q = new URLSearchParams();
     if (params.page) q.set('page', String(params.page));

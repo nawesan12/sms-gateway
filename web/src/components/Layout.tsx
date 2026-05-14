@@ -86,7 +86,7 @@ export function Layout() {
       </aside>
 
       {/* ─── Main ─── */}
-      <main className="flex-1 px-10 py-8 max-w-[1500px]">
+      <main className="flex-1 min-w-0 px-10 py-8">
         <div className="animate-fade-up">
           <Outlet />
         </div>

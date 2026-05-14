@@ -204,14 +204,13 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
           ]);
           if (fatal) {
             await audit.record({
-              eventType: AUDIT_EVENTS.CAMPAIGN_PAUSED_INSUFFICIENT_TOKENS,
+              eventType: AUDIT_EVENTS.CAMPAIGN_PAUSED_FCM_FATAL,
               actorType: 'system',
               actorId: ownerUserId,
               targetType: 'campaign',
               targetId: campaignId,
               correlationId,
               metadata: {
-                reason: 'fcm_fatal',
                 errorCode: result.errorCode,
                 errorMessage: result.errorMessage,
               },

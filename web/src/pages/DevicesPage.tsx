@@ -52,7 +52,7 @@ export function DevicesPage() {
           action={<Button onClick={() => setShowCreate(true)}>Registrar primero</Button>}
         />
       ) : (
-        <div className="surface overflow-hidden">
+        <div className="surface overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>

@@ -3,12 +3,14 @@ import { ContactListsService } from './contact-lists.service.js';
 import { ContactListsController } from './contact-lists.controller.js';
 import {
   AddMembersBody,
+  BulkAddMembersBody,
   CreateListBody,
   ListIdParam,
   ListMemberParam,
   ListMembersQuery,
   UpdateListBody,
   type AddMembersBodyT,
+  type BulkAddMembersBodyT,
   type CreateListBodyT,
   type ListIdParamT,
   type ListMemberParamT,
@@ -98,8 +100,23 @@ export async function registerContactListsRoutes(app: FastifyInstance): Promise<
         tags: ['contact-lists'],
         security: [{ bearerAuth: [] }],
       },
+      bodyLimit: 30 * 1024 * 1024,
     },
     controller.addMembers,
+  );
+
+  app.post<{ Params: ListIdParamT; Body: BulkAddMembersBodyT }>(
+    '/v1/contact-lists/:id/members/bulk',
+    {
+      preHandler: app.requireAdmin,
+      schema: {
+        params: ListIdParam,
+        body: BulkAddMembersBody,
+        tags: ['contact-lists'],
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    controller.bulkAddFromSearch,
   );
 
   app.delete<{ Params: ListMemberParamT }>(

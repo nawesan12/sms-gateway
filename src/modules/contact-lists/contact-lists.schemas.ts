@@ -22,9 +22,17 @@ export const ListMemberParam = Type.Object({
 export type ListMemberParamT = Static<typeof ListMemberParam>;
 
 export const AddMembersBody = Type.Object({
-  contactIds: Type.Array(Type.String({ format: 'uuid' }), { minItems: 1, maxItems: 1000 }),
+  contactIds: Type.Array(Type.String({ format: 'uuid' }), { minItems: 1 }),
 });
 export type AddMembersBodyT = Static<typeof AddMembersBody>;
+
+export const BulkAddMembersBody = Type.Object({
+  search: Type.Optional(Type.String({ maxLength: 200 })),
+  limit: Type.Integer({ minimum: 1 }),
+  dryRun: Type.Optional(Type.Boolean()),
+  onlyWithoutList: Type.Optional(Type.Boolean()),
+});
+export type BulkAddMembersBodyT = Static<typeof BulkAddMembersBody>;
 
 export const ListMembersQuery = Type.Object({
   page: Type.Optional(Type.Integer({ minimum: 1, default: 1 })),

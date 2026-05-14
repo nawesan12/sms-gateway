@@ -242,23 +242,29 @@ model ContactListMember {
 // CAMPAIGNS
 // =============================================================================
 model Campaign {
-  id              String             @id @default(uuid())
-  name            String
-  messageTemplate String
-  listId          String
-  ownerUserId     String?
-  status          CampaignStatus     @default(DRAFT)
-  totalRecipients Int                @default(0)
-  sentCount       Int                @default(0)
-  failedCount     Int                @default(0)
-  tpsLimit        Int                @default(1)
-  launchedAt      DateTime?
-  completedAt     DateTime?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  list            ContactList        @relation(fields: [listId], references: [id], onDelete: Restrict)
-  ownerUser       User?              @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
-  deliveries      CampaignDelivery[]
+  id                 String             @id @default(uuid())
+  name               String
+  messageTemplate    String
+  listId             String
+  ownerUserId        String?
+  status             CampaignStatus     @default(DRAFT)
+  totalRecipients    Int                @default(0)
+  sentCount          Int                @default(0)
+  failedCount        Int                @default(0)
+  tpsLimit           Int                @default(1)
+  // Throughput por hora. Reemplaza al `tpsLimit` (queda por compat).
+  // Default 100/hora ≈ 1 mensaje cada 36 segundos.
+  messagesPerHour    Int                @default(100)
+  // Se setea la primera vez que la campaña cruza el 50% de progreso.
+  // Evita loguear el evento "halfway" en cada tick del watchdog.
+  halfwayNotifiedAt  DateTime?
+  launchedAt         DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  list               ContactList        @relation(fields: [listId], references: [id], onDelete: Restrict)
+  ownerUser          User?              @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  deliveries         CampaignDelivery[]
 
   @@index([status, createdAt])
   @@index([ownerUserId])
@@ -284,18 +290,21 @@ model CampaignDelivery {
   errorCode    String?
   errorMessage String?
   sentAt       DateTime?
+  deliveredAt  DateTime?
   createdAt    DateTime       @default(now())
   campaign     Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   contact      Contact        @relation(fields: [contactId], references: [id], onDelete: Restrict)
 
   @@unique([campaignId, contactId])
   @@index([campaignId, status])
+  @@index([smsMessageId])
   @@map("campaign_deliveries")
 }
 
 enum DeliveryStatus {
   PENDING
   SENT
+  DELIVERED
   FAILED
   SKIPPED
 }

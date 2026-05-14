@@ -2,10 +2,12 @@ import type { FastifyInstance } from 'fastify';
 import { ContactsService } from './contacts.service.js';
 import { ContactsController } from './contacts.controller.js';
 import {
+  BulkCreateContactsBody,
   ContactIdParam,
   CreateContactBody,
   ImportCsvBody,
   ListContactsQuery,
+  type BulkCreateContactsBodyT,
   type ContactIdParamT,
   type CreateContactBodyT,
   type ImportCsvBodyT,
@@ -64,8 +66,22 @@ export async function registerContactsRoutes(app: FastifyInstance): Promise<void
         tags: ['contacts'],
         security: [{ bearerAuth: [] }, { bootstrapToken: [] }],
       },
-      bodyLimit: 4 * 1024 * 1024, // 4MB CSV
+      bodyLimit: 30 * 1024 * 1024, // 30MB CSV (~100k contactos)
     },
     controller.import,
+  );
+
+  app.post<{ Body: BulkCreateContactsBodyT }>(
+    '/v1/contacts/bulk',
+    {
+      preHandler: app.requireAdmin,
+      schema: {
+        body: BulkCreateContactsBody,
+        tags: ['contacts'],
+        security: [{ bearerAuth: [] }, { bootstrapToken: [] }],
+      },
+      bodyLimit: 10 * 1024 * 1024,
+    },
+    controller.bulkCreate,
   );
 }
