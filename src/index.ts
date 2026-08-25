@@ -11,14 +11,19 @@ async function main(): Promise<void> {
   const env = app.env;
   const bootstrapLog = app.log.child({ scope: 'bootstrap' });
 
-  // Schema sync: corre `prisma db push` en cada boot. Idempotente.
-  // Vive en el proceso (no en el startCommand del PaaS) para no depender
-  // de cómo la persona configure el dashboard de Render.
-  try {
-    await syncDatabaseSchema(bootstrapLog);
-  } catch (err) {
-    bootstrapLog.error({ err }, 'db schema sync failed — aborting boot');
-    process.exit(1);
+  // Schema sync: apagado por defecto. `prisma db push` contra un pooler puede
+  // colgarse esperando un advisory lock, y el boot nunca llega a app.listen();
+  // el PaaS entonces mata el proceso por no abrir puerto. El schema se aplica
+  // a mano con `npx prisma db push` apuntando al session pooler (puerto 5432).
+  // Poner DB_PUSH_ON_BOOT=true para recuperar el comportamiento anterior.
+  if (process.env['DB_PUSH_ON_BOOT'] === 'true') {
+    try {
+      await syncDatabaseSchema(bootstrapLog);
+    } catch (err) {
+      bootstrapLog.error({ err }, 'db schema sync failed — continuando sin sincronizar');
+    }
+  } else {
+    bootstrapLog.info('db schema sync omitido (DB_PUSH_ON_BOOT != true)');
   }
 
   // Auto-seed del admin operador (idempotente). En Render free no hay Shell,
