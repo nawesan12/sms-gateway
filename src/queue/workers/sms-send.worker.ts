@@ -93,6 +93,9 @@ export function startSmsSendWorker(env: AppEnv, logger: AppLogger): SmsSendWorke
     logger,
     {
       concurrency: env.WORKER_CONCURRENCY,
+      // Poll lento a propósito: la cola casi siempre está vacía y cada tick
+      // es un query. A 60 msg/hora, 3s de latencia extra no se nota.
+      pollIntervalMs: 3_000,
       backoffMs: env.WORKER_BACKOFF_MS,
       onPermanentFailure: async (job, err) => {
         logger.error({ jobId: job.id, err: err.message }, 'sms-send permanently failed → DLQ');

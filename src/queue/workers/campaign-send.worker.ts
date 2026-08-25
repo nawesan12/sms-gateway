@@ -259,6 +259,9 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
     logger,
     {
       concurrency: env.WORKER_CONCURRENCY,
+      // Poll lento a propósito: la cola casi siempre está vacía y cada tick
+      // es un query. A 60 msg/hora, 3s de latencia extra no se nota.
+      pollIntervalMs: 3_000,
       backoffMs: env.WORKER_BACKOFF_MS,
       // Conservative global rate limiter: 5 SMS/sec across todas las campañas.
       limiter: { max: 5, durationMs: 1000 },
