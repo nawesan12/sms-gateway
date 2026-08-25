@@ -33,8 +33,21 @@ export class GatewayService {
       return;
     }
 
+    // Normalizamos a lowercase: la app Android manda "SENT"/"DELIVERED"/"FAILED"/
+    // "DELIVERY_FAILED", pero internamente trabajamos en lowercase. DELIVERY_FAILED
+    // (el carrier no devolvió delivery report) lo tratamos como reporte
+    // informativo: no marca el SmsMessage como FAILED, solo loguea.
+    const raw = String(payload.status).toLowerCase();
+    const normalized: 'sent' | 'delivered' | 'failed' | 'delivery_failed' =
+      raw === 'sent' ||
+      raw === 'delivered' ||
+      raw === 'failed' ||
+      raw === 'delivery_failed'
+        ? (raw as 'sent' | 'delivered' | 'failed' | 'delivery_failed')
+        : 'failed';
+
     const now = new Date();
-    if (payload.status === 'sent') {
+    if (normalized === 'sent') {
       if (sms.status === SmsStatus.PENDING || sms.status === SmsStatus.RETRYING) {
         await this.prisma.smsMessage.update({
           where: { id: sms.id },
@@ -43,7 +56,7 @@ export class GatewayService {
       }
       return;
     }
-    if (payload.status === 'delivered') {
+    if (normalized === 'delivered') {
       await this.prisma.smsMessage.update({
         where: { id: sms.id },
         data: {
@@ -62,7 +75,7 @@ export class GatewayService {
       });
       return;
     }
-    if (payload.status === 'failed') {
+    if (normalized === 'failed') {
       await this.prisma.smsMessage.update({
         where: { id: sms.id },
         data: {
@@ -72,6 +85,14 @@ export class GatewayService {
           errorMessage: payload.errorMessage ?? null,
         },
       });
+      return;
     }
+    // 'delivery_failed': el carrier no devolvió delivery report. NO es un
+    // failure real del envío — el SMS salió pero no podemos confirmar entrega.
+    // Lo logueamos para visibilidad y no tocamos el estado del SmsMessage.
+    this.logger.info(
+      { deviceId, smsId: payload.smsId, errorMessage: payload.errorMessage },
+      'sms delivery report missing (carrier did not confirm)',
+    );
   }
 }

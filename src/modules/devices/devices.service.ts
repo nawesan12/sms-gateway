@@ -37,6 +37,10 @@ export interface PublicDevice {
   circuitState: string;
   minDelayBetweenMs: number;
   hasFcmToken: boolean;
+  suspectedBlocked: boolean;
+  suspectedBlockedAt: Date | null;
+  suspectedBlockedReason: string | null;
+  routerLoadCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -65,9 +69,57 @@ export class DevicesService {
       circuitState: device.circuitState,
       minDelayBetweenMs: device.minDelayBetweenMs,
       hasFcmToken: device.fcmToken !== null,
+      suspectedBlocked: device.suspectedBlocked,
+      suspectedBlockedAt: device.suspectedBlockedAt,
+      suspectedBlockedReason: device.suspectedBlockedReason,
+      routerLoadCount: device.routerLoadCount,
       createdAt: device.createdAt,
       updatedAt: device.updatedAt,
     };
+  }
+
+  async markSuspected(id: string, reason: string, actorId: string, correlationId: string) {
+    const device = await this.getById(id);
+    const updated = await this.prisma.device.update({
+      where: { id },
+      data: {
+        suspectedBlocked: true,
+        suspectedBlockedAt: new Date(),
+        suspectedBlockedReason: reason,
+      },
+    });
+    await this.audit.record({
+      eventType: AUDIT_EVENTS.DEVICE_UPDATED,
+      actorType: 'user',
+      actorId,
+      targetType: 'device',
+      targetId: id,
+      correlationId,
+      metadata: { action: 'mark_suspected', reason, before: device.suspectedBlocked },
+    });
+    return this.toPublic(updated);
+  }
+
+  async clearSuspected(id: string, actorId: string, correlationId: string) {
+    await this.getById(id);
+    const updated = await this.prisma.device.update({
+      where: { id },
+      data: {
+        suspectedBlocked: false,
+        suspectedBlockedAt: null,
+        suspectedBlockedReason: null,
+      },
+    });
+    await this.audit.record({
+      eventType: AUDIT_EVENTS.DEVICE_UPDATED,
+      actorType: 'user',
+      actorId,
+      targetType: 'device',
+      targetId: id,
+      correlationId,
+      metadata: { action: 'clear_suspected' },
+    });
+    return this.toPublic(updated);
   }
 
   async list(): Promise<PublicDevice[]> {

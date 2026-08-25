@@ -8,6 +8,11 @@ export interface Device {
   lastHeartbeat: string | null;
   failureCount: number;
   circuitState: string;
+  hasFcmToken?: boolean;
+  suspectedBlocked?: boolean;
+  suspectedBlockedAt?: string | null;
+  suspectedBlockedReason?: string | null;
+  routerLoadCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -67,6 +72,7 @@ export interface CampaignDelivery {
   campaignId: string;
   contactId: string;
   smsMessageId: string | null;
+  deviceId: string | null;
   status: 'PENDING' | 'SENT' | 'DELIVERED' | 'FAILED' | 'SKIPPED';
   errorCode: string | null;
   errorMessage: string | null;

@@ -164,6 +164,7 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
               data: {
                 status: DeliveryStatus.SENT,
                 smsMessageId: smsId,
+                deviceId: device.id,
                 sentAt: new Date(),
               },
             }),
@@ -190,6 +191,7 @@ export function startCampaignSendWorker(env: AppEnv, logger: AppLogger): Campaig
               data: {
                 status: DeliveryStatus.FAILED,
                 smsMessageId: smsId,
+                deviceId: device.id,
                 errorCode: result.errorCode ?? null,
                 errorMessage: result.errorMessage ?? null,
               },

@@ -23,3 +23,6 @@ web/node_modules/
 
 # Local CLI config (no commitear: contiene el bootstrap token)
 scripts/gateway.env
+
+# Secrets sueltos (no commitear)
+secrets.env

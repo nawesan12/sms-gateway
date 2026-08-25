@@ -125,10 +125,6 @@ export class ContactsRepository {
     return this.prisma.contact.delete({ where: { id } });
   }
 
-  countDeliveries(contactId: string): Promise<number> {
-    return this.prisma.campaignDelivery.count({ where: { contactId } });
-  }
-
   list(args: {
     search?: string;
     skip: number;

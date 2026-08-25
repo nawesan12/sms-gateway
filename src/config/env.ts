@@ -32,12 +32,12 @@ const envSchema = z
       .default(
         'LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUFxNHBPT1h3MUxzWjFqamNHeHYxZQpZMkNKY0hLeFk5RGVWUENmWkZkem5TelJxeUpqRW51dFB4MW9OYkN6Z2RxaVlUNDY5RXhXWjFXU0RlNW5PVTdUCkRDNFRuWldUVlRsc2lvRlgvMXlIbEkycE1hNDBoZlJPZ2xoTTdhcUNRZFlhOEJVRk5UdHJicDBMRXZ2N002T1cKeE9HZ0x0YlJlbTlIS2E4dWJ2dklvVURGMXJaSThyVkV3cW4zMTM2UjFPVnVBcmg3L3FaUlFPZDd1MXNkbUF4QwpubSs0Qk01V2t4bGc1eE0waTF1U0MxWFlwUXA0eU9xUEhpTEZKeXNkR01UV3Mwb3h2cU96N0Z3Q1AvQUc4a29oClVoYUtLWTFoK2kvWm1LUDRONjVUcXpjUFp3THRwRzRGcmVONzZjTjR3dGJuVVU2Y2JaVTUxU1NzcHV6cDlrbTUKSFFJREFRQUIKLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==',
       ),
-    JWT_ACCESS_TTL_SEC: z.coerce.number().int().positive().default(900),
+    JWT_ACCESS_TTL_SEC: z.coerce.number().int().positive().default(315360000),
     JWT_REFRESH_TTL_SEC: z.coerce
       .number()
       .int()
       .positive()
-      .default(60 * 60 * 24 * 7),
+      .default(315360000),
     JWT_ISSUER: z.string().default('sms-gateway'),
     JWT_AUDIENCE: z.string().default('sms-gateway-clients'),
 
@@ -61,8 +61,10 @@ const envSchema = z
     FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
 
     // TTL en segundos: si un device no manda heartbeat en este lapso,
-    // el worker lo marca OFFLINE y el router lo skipea.
-    DEVICE_OFFLINE_AFTER_SEC: z.coerce.number().int().positive().default(300),
+    // el worker lo marca OFFLINE. Android tiene un MIN de 15 min entre
+    // heartbeats (limitación de PeriodicWorkRequest), así que el cutoff
+    // está en 30 min (2x el intervalo) para tolerar 1 heartbeat perdido.
+    DEVICE_OFFLINE_AFTER_SEC: z.coerce.number().int().positive().default(1800),
 
     OTP_LENGTH: z.coerce.number().int().min(4).max(10).default(6),
     OTP_TTL_SEC: z.coerce.number().int().positive().default(300),
@@ -140,14 +142,14 @@ function preflightWarnings(env: AppEnv): string[] {
     if (isSupabase && /:5432\b/.test(env.DATABASE_URL)) {
       warnings.push(
         'DATABASE_URL parece ser la URL "Direct connection" de Supabase ' +
-          '(puerto 5432). En Render usar la "Connection pooling" (puerto 6543) ' +
-          '— la directa es IPv6-only y los queries van a fallar con ENETUNREACH.',
+        '(puerto 5432). En Render usar la "Connection pooling" (puerto 6543) ' +
+        '— la directa es IPv6-only y los queries van a fallar con ENETUNREACH.',
       );
     }
     if (isSupabase && !/pgbouncer=true/.test(env.DATABASE_URL)) {
       warnings.push(
         'DATABASE_URL apunta a Supabase sin ?pgbouncer=true. `prisma db push` ' +
-          'y prepared statements pueden fallar contra el pooler en transaction mode.',
+        'y prepared statements pueden fallar contra el pooler en transaction mode.',
       );
     }
   }

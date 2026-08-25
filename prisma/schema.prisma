@@ -130,6 +130,18 @@ model Device {
   // futuro, el router skipea este device hasta que pase. Reemplazo del lock
   // distribuido en Redis (SET NX PX) por una columna versionada en Postgres.
   cooldownUntil     DateTime?
+  // Flag que setea el watchdog cuando detecta que los últimos N SMS del
+  // device están en SENT > 10 min sin pasar a DELIVERED. Sospecha que la
+  // SIM está bloqueada por la operadora. El router lo skipea hasta que el
+  // operador lo limpia desde la UI.
+  suspectedBlocked  Boolean      @default(false)
+  suspectedBlockedAt DateTime?
+  suspectedBlockedReason String?
+  // Contador rotatorio para round-robin: cantidad de SMS asignados por el
+  // router en el día actual. Se usa para elegir siempre el device con menor
+  // carga, evitando quemar una sola SIM.
+  routerLoadCount   Int          @default(0)
+  routerLoadResetAt DateTime?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   smsMessages       SmsMessage[]
@@ -253,8 +265,9 @@ model Campaign {
   failedCount        Int                @default(0)
   tpsLimit           Int                @default(1)
   // Throughput por hora. Reemplaza al `tpsLimit` (queda por compat).
-  // Default 100/hora ≈ 1 mensaje cada 36 segundos.
-  messagesPerHour    Int                @default(100)
+  // Default 60/hora = 1 mensaje cada 60 segundos. Más conservador que
+  // 100/hora para evitar gatillar anti-spam de operadoras AR.
+  messagesPerHour    Int                @default(60)
   // Se setea la primera vez que la campaña cruza el 50% de progreso.
   // Evita loguear el evento "halfway" en cada tick del watchdog.
   halfwayNotifiedAt  DateTime?
@@ -286,6 +299,7 @@ model CampaignDelivery {
   campaignId   String
   contactId    String
   smsMessageId String?
+  deviceId     String?
   status       DeliveryStatus @default(PENDING)
   errorCode    String?
   errorMessage String?
@@ -293,7 +307,7 @@ model CampaignDelivery {
   deliveredAt  DateTime?
   createdAt    DateTime       @default(now())
   campaign     Campaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  contact      Contact        @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  contact      Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   @@unique([campaignId, contactId])
   @@index([campaignId, status])

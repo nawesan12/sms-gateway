@@ -45,7 +45,12 @@ export class GatewayController {
       reply.code(403).send({ success: false, error: 'apiKey does not match deviceId' });
       return;
     }
-    await this.service.heartbeat(r.gatewayDevice.id, req.body.batteryLevel ?? null);
+    // La app Android usa `batteryPercentage`, este endpoint históricamente
+    // esperó `batteryLevel`. Aceptamos cualquiera de los dos para no perder
+    // info del nivel de batería en los heartbeats reales.
+    const body = req.body as { batteryLevel?: number; batteryPercentage?: number };
+    const battery = body.batteryLevel ?? body.batteryPercentage ?? null;
+    await this.service.heartbeat(r.gatewayDevice.id, battery);
     reply.send(ok());
   };
 

@@ -53,4 +53,38 @@ export class DevicesController {
     await this.service.remove(req.params.id, actorId, req.correlationId);
     reply.code(204).send();
   };
+
+  markSuspected = async (
+    req: FastifyRequest<{ Params: DeviceParamIdT; Body: { reason?: string } }>,
+    reply: FastifyReply,
+  ): Promise<void> => {
+    const actorId = req.authUser?.id ?? 'unknown';
+    const reason = req.body?.reason ?? 'manual_mark';
+    const updated = await this.service.markSuspected(
+      req.params.id,
+      reason,
+      actorId,
+      req.correlationId,
+    );
+    reply.send({
+      success: true,
+      data: updated,
+      error: null,
+      meta: { requestId: req.correlationId, timestamp: new Date().toISOString() },
+    });
+  };
+
+  clearSuspected = async (
+    req: FastifyRequest<{ Params: DeviceParamIdT }>,
+    reply: FastifyReply,
+  ): Promise<void> => {
+    const actorId = req.authUser?.id ?? 'unknown';
+    const updated = await this.service.clearSuspected(req.params.id, actorId, req.correlationId);
+    reply.send({
+      success: true,
+      data: updated,
+      error: null,
+      meta: { requestId: req.correlationId, timestamp: new Date().toISOString() },
+    });
+  };
 }

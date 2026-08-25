@@ -46,4 +46,9 @@ export const campaignsApi = {
       method: 'POST',
       body: '{}',
     }),
+  retryUnconfirmed: (id: string) =>
+    apiFetch<{ reencoladas: number; total: number }>(
+      `/v1/campaigns/${id}/retry-unconfirmed`,
+      { method: 'POST', body: '{}' },
+    ),
 };

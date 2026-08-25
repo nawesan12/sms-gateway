@@ -132,18 +132,6 @@ export class ContactsService {
 
   async delete(id: string): Promise<void> {
     await this.getById(id);
-    // CampaignDelivery tiene FK Restrict sobre contact: si el contacto tiene
-    // mensajes asociados, Prisma rompe con P2003 (FK violation) y desde el
-    // front se ve como "el botón no anda". Chequeamos antes para devolver 409
-    // con mensaje claro. ContactListMember cascadea solo (definido en schema).
-    const deliveries = await this.repo.countDeliveries(id);
-    if (deliveries > 0) {
-      throw new AppError(
-        ERROR_CODES.VALIDATION,
-        `No se puede borrar: el contacto tiene ${deliveries} mensaje${deliveries === 1 ? '' : 's'} en campañas. Borrá primero las campañas asociadas o desactivá el contacto.`,
-        409,
-      );
-    }
     await this.repo.delete(id);
   }
 

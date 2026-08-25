@@ -160,6 +160,15 @@ export class CampaignsService {
       );
     }
 
+    // Auto-revive: todo device OFFLINE con fcmToken válido pasa a ACTIVE.
+    // FCM puede despachar incluso a celus en Doze, así que el OFFLINE solo
+    // refleja "no mandó heartbeat reciente" — no impide enviar.
+    // Esto evita tener que tocar "revive" a mano antes de cada campaña.
+    await this.prisma.device.updateMany({
+      where: { status: 'OFFLINE', fcmToken: { not: null } },
+      data: { status: 'ACTIVE', lastHeartbeat: new Date() },
+    });
+
     const router = DeviceRouter.create(this.prisma, this.env, this.logger);
     const eligibleDevices = await router.listEligible();
     if (eligibleDevices.length === 0) {
@@ -190,7 +199,7 @@ export class CampaignsService {
     const now = new Date();
     // Throttling: espaciamos los jobs según messagesPerHour. El PgWorker
     // respeta `nextRunAt <= NOW()`, así que los SMS salen a este ritmo.
-    const mph = campaign.messagesPerHour > 0 ? campaign.messagesPerHour : 100;
+    const mph = campaign.messagesPerHour > 0 ? campaign.messagesPerHour : 60;
     const intervalMs = Math.floor(3_600_000 / mph);
     const launched = await this.prisma.$transaction(async (tx) => {
       await tx.campaignDelivery.createMany({
@@ -286,6 +295,81 @@ export class CampaignsService {
           : {}),
       },
     });
+  }
+
+  // Re-encola deliveries que están en SENT por más de 5 minutos sin pasar a
+  // DELIVERED. Útil cuando sospechás que el carrier descartó SMS y querés
+  // intentar de nuevo (idealmente con otro device tras marcar el sospechoso).
+  async retryUnconfirmed(id: string, correlationId: string) {
+    const campaign = await this.prisma.campaign.findUnique({ where: { id } });
+    if (!campaign) throw new AppError(ERROR_CODES.NOT_FOUND, 'Campaign not found', 404);
+    if (!campaign.ownerUserId) {
+      throw new AppError(ERROR_CODES.VALIDATION, 'Campaign without ownerUserId cannot retry', 400);
+    }
+    const cutoff = new Date(Date.now() - 5 * 60 * 1000);
+    const unconfirmed = await this.prisma.campaignDelivery.findMany({
+      where: {
+        campaignId: id,
+        status: 'SENT',
+        deliveredAt: null,
+        sentAt: { lt: cutoff },
+      },
+      select: { id: true, contactId: true },
+    });
+    if (unconfirmed.length === 0) {
+      return { reencoladas: 0, total: 0 };
+    }
+
+    // Marcamos los deliveries como PENDING de nuevo y los re-encolamos.
+    // Limpiamos sentAt/smsMessageId para que el envío tome un device fresco
+    // (especialmente si el operador marcó el anterior como suspectedBlocked).
+    const mph = campaign.messagesPerHour > 0 ? campaign.messagesPerHour : 60;
+    const intervalMs = Math.floor(3_600_000 / mph);
+    const now = new Date();
+    const maxAttempts = this.env.WORKER_MAX_RETRIES + 1;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.campaignDelivery.updateMany({
+        where: { id: { in: unconfirmed.map((d) => d.id) } },
+        data: {
+          status: 'PENDING',
+          sentAt: null,
+          deliveredAt: null,
+          smsMessageId: null,
+          errorCode: null,
+          errorMessage: null,
+        },
+      });
+      // Sumamos a sentCount un decremento equivalente.
+      await tx.campaign.update({
+        where: { id },
+        data: {
+          sentCount: { decrement: unconfirmed.length },
+          status:
+            campaign.status === 'COMPLETED' || campaign.status === 'PAUSED'
+              ? 'QUEUED'
+              : campaign.status,
+        },
+      });
+      await tx.job.createMany({
+        data: unconfirmed.map((d, idx) => ({
+          queue: this.campaignQueue.name,
+          payload: {
+            deliveryId: d.id,
+            campaignId: id,
+            correlationId,
+          } as Prisma.InputJsonValue,
+          maxAttempts,
+          nextRunAt: new Date(now.getTime() + idx * intervalMs),
+        })),
+      });
+    });
+
+    this.logger.info(
+      { campaignId: id, retried: unconfirmed.length, correlationId },
+      'campaign retry-unconfirmed',
+    );
+    return { reencoladas: unconfirmed.length, total: unconfirmed.length };
   }
 
   async cancel(id: string, correlationId: string) {

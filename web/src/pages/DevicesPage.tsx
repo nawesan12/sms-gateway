@@ -33,6 +33,16 @@ export function DevicesPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['devices'] }),
   });
 
+  const markSuspected = useMutation({
+    mutationFn: (id: string) => devicesApi.markSuspected(id, 'manual_mark'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['devices'] }),
+  });
+
+  const clearSuspected = useMutation({
+    mutationFn: (id: string) => devicesApi.clearSuspected(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['devices'] }),
+  });
+
   return (
     <div className="space-y-8">
       <header className="flex items-end justify-between border-b border-line pb-6">
@@ -67,9 +77,34 @@ export function DevicesPage() {
             </thead>
             <tbody>
               {list.data?.items.map((d) => (
-                <tr key={d.id}>
+                <tr
+                  key={d.id}
+                  className={d.suspectedBlocked ? 'bg-signal-warn/5' : undefined}
+                >
                   <td>
-                    <span className="font-medium text-ink-primary">{d.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-ink-primary">{d.name}</span>
+                      {d.suspectedBlocked && (
+                        <span
+                          className="text-2xs font-mono uppercase tracking-widest text-signal-warn px-1.5 py-0.5 border border-signal-warn/40"
+                          title={`Sospechoso de bloqueo · ${d.suspectedBlockedReason ?? ''}${
+                            d.suspectedBlockedAt
+                              ? ` desde ${new Date(d.suspectedBlockedAt).toLocaleString()}`
+                              : ''
+                          }`}
+                        >
+                          ⚠ sospechoso
+                        </span>
+                      )}
+                      {typeof d.routerLoadCount === 'number' && d.routerLoadCount > 0 && (
+                        <span
+                          className="text-2xs font-mono text-ink-muted"
+                          title="SMS asignados por el router hoy"
+                        >
+                          {d.routerLoadCount} tx/24h
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="font-mono text-xs text-ink-secondary">{d.textbeeDeviceId}</td>
                   <td>
@@ -87,6 +122,31 @@ export function DevicesPage() {
                       {d.status !== 'ACTIVE' && (
                         <Button variant="secondary" onClick={() => reactivate.mutate(d.id)}>
                           revive
+                        </Button>
+                      )}
+                      {d.suspectedBlocked ? (
+                        <Button
+                          variant="secondary"
+                          onClick={() => clearSuspected.mutate(d.id)}
+                          loading={clearSuspected.isPending}
+                        >
+                          ✓ limpiar sospecha
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            if (
+                              confirm(
+                                `Marcar ${d.name} como sospechoso de bloqueo? El router lo skipea hasta que limpies la sospecha.`,
+                              )
+                            ) {
+                              markSuspected.mutate(d.id);
+                            }
+                          }}
+                          loading={markSuspected.isPending}
+                        >
+                          ⚠ marcar sospechoso
                         </Button>
                       )}
                       <Button

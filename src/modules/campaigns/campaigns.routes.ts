@@ -100,4 +100,13 @@ export async function registerCampaignsRoutes(app: FastifyInstance): Promise<voi
     },
     controller.update,
   );
+
+  app.post<{ Params: CampaignIdParamT }>(
+    '/v1/campaigns/:id/retry-unconfirmed',
+    {
+      preHandler: app.requireAdmin,
+      schema: { params: CampaignIdParam, tags: ['campaigns'], security: [{ bearerAuth: [] }] },
+    },
+    controller.retryUnconfirmed,
+  );
 }

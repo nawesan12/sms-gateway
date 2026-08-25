@@ -62,4 +62,30 @@ export async function registerDevicesRoutes(app: FastifyInstance): Promise<void>
     },
     controller.remove,
   );
+
+  app.post<{ Params: DeviceParamIdT; Body: { reason?: string } }>(
+    '/v1/devices/:id/suspect',
+    {
+      preHandler: app.requireAdmin,
+      schema: {
+        params: DeviceParamId,
+        tags: ['devices'],
+        security: [{ bearerAuth: [] }, { bootstrapToken: [] }],
+      },
+    },
+    controller.markSuspected,
+  );
+
+  app.delete<{ Params: DeviceParamIdT }>(
+    '/v1/devices/:id/suspect',
+    {
+      preHandler: app.requireAdmin,
+      schema: {
+        params: DeviceParamId,
+        tags: ['devices'],
+        security: [{ bearerAuth: [] }, { bootstrapToken: [] }],
+      },
+    },
+    controller.clearSuspected,
+  );
 }

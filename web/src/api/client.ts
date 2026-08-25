@@ -31,8 +31,13 @@ interface ApiEnvelope<T> {
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
+  // content-type solo si hay body. Fastify rechaza application/json + body vacío
+  // con "Body cannot be empty when content-type is set to 'application/json'",
+  // lo que rompía DELETE/GET (que no llevan body).
   const headers: Record<string, string> = {
-    'content-type': 'application/json',
+    ...(init.body !== undefined && init.body !== null
+      ? { 'content-type': 'application/json' }
+      : {}),
     ...((init.headers as Record<string, string>) ?? {}),
   };
   // Mandamos los dos headers a la vez. El plugin auth-admin del backend

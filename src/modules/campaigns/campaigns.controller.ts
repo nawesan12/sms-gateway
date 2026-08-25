@@ -93,6 +93,14 @@ export class CampaignsController {
     const out = await this.service.update(req.params.id, req.body);
     reply.send({ success: true, data: out, error: null, meta: meta(req) });
   };
+
+  retryUnconfirmed = async (
+    req: FastifyRequest<{ Params: CampaignIdParamT }>,
+    reply: FastifyReply,
+  ): Promise<void> => {
+    const out = await this.service.retryUnconfirmed(req.params.id, req.correlationId);
+    reply.send({ success: true, data: out, error: null, meta: meta(req) });
+  };
 }
 
 function meta(req: FastifyRequest) {

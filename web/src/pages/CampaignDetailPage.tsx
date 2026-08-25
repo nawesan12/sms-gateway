@@ -36,6 +36,19 @@ export function CampaignDetailPage() {
     onError: (err: Error) => alert(`No se pudo cancelar: ${err.message}`),
   });
 
+  const retryUnconfirmed = useMutation({
+    mutationFn: () => campaignsApi.retryUnconfirmed(id),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['campaign', id] });
+      alert(
+        res.reencoladas > 0
+          ? `Se re-encolaron ${res.reencoladas} mensajes no confirmados.`
+          : 'No hay mensajes no confirmados para reintentar.',
+      );
+    },
+    onError: (err: Error) => alert(`No se pudo reintentar: ${err.message}`),
+  });
+
   const [editingMessage, setEditingMessage] = useState(false);
   const [draftMessage, setDraftMessage] = useState('');
   const [draftMph, setDraftMph] = useState<number | ''>('');
@@ -115,6 +128,25 @@ export function CampaignDetailPage() {
               {(c.status === 'QUEUED' || c.status === 'RUNNING') && (
                 <Button variant="danger" onClick={() => cancel.mutate()} loading={cancel.isPending}>
                   ■ Cancelar
+                </Button>
+              )}
+              {(c.status === 'COMPLETED' ||
+                c.status === 'PAUSED' ||
+                c.status === 'RUNNING') && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    if (
+                      confirm(
+                        '¿Reintentar mensajes en SENT > 5 min sin confirmación de entrega? Se vuelven a encolar y consumen tokens igual.',
+                      )
+                    ) {
+                      retryUnconfirmed.mutate();
+                    }
+                  }}
+                  loading={retryUnconfirmed.isPending}
+                >
+                  ↻ Reintentar no confirmados
                 </Button>
               )}
             </div>
@@ -256,23 +288,39 @@ export function CampaignDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {deliveries.data?.items.map((d) => (
-                <tr key={d.id}>
-                  <td className="font-mono text-xs">{d.contact.phoneE164}</td>
-                  <td>{d.contact.name ?? <span className="text-ink-dim">—</span>}</td>
-                  <td>
-                    <Badge>{d.status}</Badge>
-                  </td>
-                  <td className="text-2xs font-mono text-signal-err">{d.errorMessage ?? ''}</td>
-                  <td className="text-2xs font-mono text-ink-muted">
-                    {d.deliveredAt
-                      ? `✓ ${new Date(d.deliveredAt).toLocaleTimeString()}`
-                      : d.sentAt
-                        ? new Date(d.sentAt).toLocaleTimeString()
-                        : ''}
-                  </td>
-                </tr>
-              ))}
+              {deliveries.data?.items.map((d) => {
+                const stale =
+                  d.status === 'SENT' &&
+                  !d.deliveredAt &&
+                  d.sentAt &&
+                  Date.now() - new Date(d.sentAt).getTime() > 5 * 60 * 1000;
+                return (
+                  <tr key={d.id}>
+                    <td className="font-mono text-xs">{d.contact.phoneE164}</td>
+                    <td>{d.contact.name ?? <span className="text-ink-dim">—</span>}</td>
+                    <td>
+                      {stale ? (
+                        <span
+                          className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs uppercase tracking-widest font-mono bg-signal-warn/10 text-signal-warn border border-signal-warn/30"
+                          title="SENT hace más de 5 min pero el carrier no confirmó entrega. Posible bloqueo de operadora o falta de delivery report."
+                        >
+                          ⚠ no confirmado
+                        </span>
+                      ) : (
+                        <Badge>{d.status}</Badge>
+                      )}
+                    </td>
+                    <td className="text-2xs font-mono text-signal-err">{d.errorMessage ?? ''}</td>
+                    <td className="text-2xs font-mono text-ink-muted">
+                      {d.deliveredAt
+                        ? `✓ ${new Date(d.deliveredAt).toLocaleTimeString()}`
+                        : d.sentAt
+                          ? new Date(d.sentAt).toLocaleTimeString()
+                          : ''}
+                    </td>
+                  </tr>
+                );
+              })}
               {deliveries.data?.items.length === 0 && (
                 <tr>
                   <td colSpan={5} className="text-center py-12 text-2xs uppercase tracking-widest font-mono text-ink-muted">
